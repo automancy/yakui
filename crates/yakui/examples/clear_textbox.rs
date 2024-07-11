@@ -7,7 +7,6 @@ fn run() {
 
         let res = textbox("Hello", if clear.get() { Some("") } else { None });
         clear.set(false);
-
         if let Some(new_text) = res.into_inner().text {
             text.set(new_text);
         }

@@ -118,10 +118,10 @@ pub struct TextBoxWidget {
     active: bool,
     activated: bool,
     lost_focus: bool,
-    text_up_to_date: Cell<bool>,
     drag: DragState,
     cosmic_editor: RefCell<Option<cosmic_text::Editor<'static>>>,
     max_size: Cell<Option<(Option<f32>, Option<f32>)>>,
+    text_changed: Cell<bool>,
     scale_factor: Cell<Option<f32>>,
 }
 
@@ -145,10 +145,10 @@ impl Widget for TextBoxWidget {
             active: false,
             activated: false,
             lost_focus: false,
-            text_up_to_date: Cell::new(true),
             drag: DragState::None,
             cosmic_editor: RefCell::new(None),
             max_size: Cell::default(),
+            text_changed: Cell::default(),
             scale_factor: Cell::default(),
         }
     }
@@ -159,41 +159,43 @@ impl Widget for TextBoxWidget {
         let mut style = self.props.style.clone();
         let mut scroll = None;
 
-        let text = self.cosmic_editor.borrow().as_ref().and_then(|editor| {
+        let mut is_empty = false;
+
+        let text = self.cosmic_editor.borrow().as_ref().map(|editor| {
             editor.with_buffer(|buffer| {
                 scroll = Some(buffer.scroll());
+                is_empty = buffer.lines.iter().all(|v| v.text().is_empty());
 
-                if buffer.lines.iter().all(|v| v.text().is_empty()) {
-                    // Dim towards background
-                    style.color = style
-                        .color
-                        .lerp(&self.props.fill.unwrap_or(Color::CLEAR), 0.75);
-
-                    None
-                } else {
-                    Some(
-                        buffer
-                            .lines
-                            .iter()
-                            .map(|v| v.text())
-                            .collect::<Vec<_>>()
-                            .join("\n"),
-                    )
-                }
+                buffer
+                    .lines
+                    .iter()
+                    .map(|v| v.text())
+                    .collect::<Vec<_>>()
+                    .join("\n")
             })
         });
 
-        if self.props.update_text.is_some() {
-            self.text_up_to_date.set(false);
+        if is_empty {
+            // Dim towards background
+            style.color = style
+                .color
+                .lerp(&self.props.fill.unwrap_or(Color::CLEAR), 0.75);
         }
 
         Self::Response {
+            scroll,
+            text: if self.text_changed.take() {
+                text.clone()
+            } else {
+                None
+            },
             render_text: RenderText {
-                text: text.clone().unwrap_or(self.props.placeholder.clone()),
+                text: (!is_empty)
+                    .then_some(text)
+                    .flatten()
+                    .unwrap_or(self.props.placeholder.clone()),
                 style,
             },
-            scroll,
-            text,
             activated: mem::take(&mut self.activated),
             lost_focus: mem::take(&mut self.lost_focus),
         }
@@ -231,8 +233,6 @@ impl Widget for TextBoxWidget {
                         );
 
                         buffer.set_size(font_system, max_width, max_height);
-
-                        buffer.shape_until_scroll(font_system, false);
                     });
 
                     self.scale_factor.set(Some(ctx.layout.scale_factor()));
@@ -240,20 +240,18 @@ impl Widget for TextBoxWidget {
                 }
 
                 if let Some(new_text) = &self.props.update_text {
-                    if !self.text_up_to_date.get() {
-                        editor.with_buffer_mut(|buffer| {
-                            buffer.set_text(
-                                font_system,
-                                new_text,
-                                self.props.style.attrs.as_attrs(),
-                                cosmic_text::Shaping::Advanced,
-                            );
-                        });
+                    self.text_changed.set(true);
 
-                        editor.set_cursor(cosmic_text::Cursor::new(0, 0));
+                    editor.with_buffer_mut(|buffer| {
+                        buffer.set_text(
+                            font_system,
+                            new_text,
+                            self.props.style.attrs.as_attrs(),
+                            cosmic_text::Shaping::Advanced,
+                        );
+                    });
 
-                        self.text_up_to_date.set(true);
-                    }
+                    editor.set_cursor(cosmic_text::Cursor::new(0, 0));
                 }
             }
         });
@@ -510,7 +508,6 @@ impl Widget for TextBoxWidget {
                                         cosmic_text::Action::Motion(cosmic_text::Motion::PageUp),
                                     );
                                 }
-
                                 EventResponse::Sink
                             }
 
@@ -521,13 +518,13 @@ impl Widget for TextBoxWidget {
                                         cosmic_text::Action::Motion(cosmic_text::Motion::PageDown),
                                     );
                                 }
-
                                 EventResponse::Sink
                             }
 
                             KeyCode::Backspace => {
                                 if *down {
                                     editor.action(font_system, cosmic_text::Action::Backspace);
+                                    self.text_changed.set(true);
                                 }
                                 EventResponse::Sink
                             }
@@ -535,6 +532,7 @@ impl Widget for TextBoxWidget {
                             KeyCode::Delete => {
                                 if *down {
                                     editor.action(font_system, cosmic_text::Action::Delete);
+                                    self.text_changed.set(true);
                                 }
                                 EventResponse::Sink
                             }
@@ -564,12 +562,14 @@ impl Widget for TextBoxWidget {
                                     if self.props.inline_edit {
                                         if self.props.multiline && modifiers.shift() {
                                             editor.action(font_system, cosmic_text::Action::Enter);
+                                            self.text_changed.set(true);
                                         } else {
                                             self.activated = true;
                                             ctx.input.set_selection(None);
                                         }
                                     } else {
                                         editor.action(font_system, cosmic_text::Action::Enter);
+                                        self.text_changed.set(true);
                                     }
                                 }
                                 EventResponse::Sink
@@ -578,7 +578,9 @@ impl Widget for TextBoxWidget {
                             KeyCode::Escape => {
                                 if *down {
                                     editor.action(font_system, cosmic_text::Action::Escape);
-                                    ctx.input.set_selection(None);
+                                    if self.props.inline_edit {
+                                        ctx.input.set_selection(None);
+                                    }
                                 }
                                 EventResponse::Sink
                             }
@@ -603,6 +605,7 @@ impl Widget for TextBoxWidget {
                             }
                         } else {
                             editor.action(font_system, cosmic_text::Action::Insert(*c));
+                            self.text_changed.set(true);
                         }
                     }
                 });
