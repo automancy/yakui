@@ -43,6 +43,7 @@ impl ColoredBox {
         widget::<ColoredBoxWidget>(self)
     }
 
+    #[track_caller]
     pub fn show_children<F: FnOnce()>(self, children: F) -> Response<ColoredBoxResponse> {
         widget_children::<ColoredBoxWidget, F>(children, self)
     }

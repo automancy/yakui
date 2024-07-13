@@ -27,6 +27,7 @@ impl Canvas {
         widget::<CanvasWidget>(self)
     }
 
+    #[track_caller]
     pub fn show_children<F: FnOnce()>(self, children: F) -> Response<CanvasResponse> {
         widget_children::<CanvasWidget, F>(children, self)
     }
