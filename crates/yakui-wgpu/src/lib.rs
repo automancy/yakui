@@ -424,9 +424,20 @@ impl<T> YakuiWgpu<T> {
                             0.0,
                             1.0,
                         );
-                    }
 
-                    render_pass.set_scissor_rect(0, 0, surface.x, surface.y);
+                        render_pass.set_scissor_rect(pos.x, pos.y, size.x, size.y);
+                    } else {
+                        render_pass.set_viewport(
+                            0.0,
+                            0.0,
+                            surface.x as f32,
+                            surface.y as f32,
+                            0.0,
+                            1.0,
+                        );
+
+                        render_pass.set_scissor_rect(0, 0, surface.x, surface.y);
+                    }
 
                     command.paint(render_pass, device, queue, custom_paint_resoucres);
                 }
