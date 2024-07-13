@@ -46,9 +46,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             }
 
             Event::WindowEvent { event, .. } => {
-                if graphics.handle_window_event(&mut yak, &event, event_loop) {
-                    return;
-                }
+                graphics.handle_window_event(&mut yak, &event, event_loop);
             }
             _ => (),
         })

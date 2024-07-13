@@ -18,13 +18,13 @@ impl PipelineCache {
         }
     }
 
-    pub fn get<'a, F>(
-        &'a mut self,
+    pub fn get<F>(
+        &mut self,
         format: wgpu::TextureFormat,
         depth_format: Option<wgpu::TextureFormat>,
         samples: u32,
         init: F,
-    ) -> &'a wgpu::RenderPipeline
+    ) -> &wgpu::RenderPipeline
     where
         F: FnOnce(&wgpu::PipelineLayout) -> wgpu::RenderPipeline,
     {
@@ -32,10 +32,7 @@ impl PipelineCache {
             Some(existing)
                 if existing.format == format
                     && existing.samples == samples
-                    && existing.depth_format == depth_format =>
-            {
-                ()
-            }
+                    && existing.depth_format == depth_format => {}
             _ => {
                 let pipeline = init(&self.layout);
 
