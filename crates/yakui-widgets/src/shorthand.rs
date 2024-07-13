@@ -100,8 +100,9 @@ pub fn label<S: Into<Cow<'static, str>>>(text: S) -> Response<TextResponse> {
 }
 
 /// See [TextBox].
+#[track_caller]
 pub fn textbox(initial_text: &str, updated_text: Option<&str>) -> Response<TextBoxResponse> {
-    TextBox::with_text(initial_text, updated_text).show()
+    TextBox::show_with_text(initial_text, updated_text)
 }
 
 /// See [Flexible].
@@ -192,6 +193,7 @@ pub fn max_width(max_width: f32, children: impl FnOnce()) -> Response<MaxWidthRe
     MaxWidth::new(max_width).show(children)
 }
 
+#[track_caller]
 pub fn use_state<F, T: 'static>(default: F) -> Response<StateResponse<T>>
 where
     F: FnOnce() -> T + 'static,

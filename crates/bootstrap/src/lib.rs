@@ -8,9 +8,9 @@ use winit::{
     application::ApplicationHandler,
     event::{StartCause, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    window::{Window, WindowAttributes, WindowId},
 };
 
-use winit::window::{Window, WindowAttributes, WindowId};
 use yakui::font::Fonts;
 use yakui::paint::{Texture, TextureFilter, TextureFormat};
 use yakui::{ManagedTextureId, Rect, TextureId, UVec2, Vec2, Yakui};

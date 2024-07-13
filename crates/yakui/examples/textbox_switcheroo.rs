@@ -1,4 +1,4 @@
-use yakui::{button, column, unique_textbox, use_state};
+use yakui::{button, column, textbox, use_state};
 
 #[derive(Debug, Clone, Copy)]
 enum Page {
@@ -18,15 +18,13 @@ pub fn run() {
             page.set(Page::B);
         }
 
-        #[derive(Debug)]
-        struct PageA;
-
-        #[derive(Debug)]
-        struct PageB;
-
         match page.get() {
-            Page::A => unique_textbox::<PageA>("a", None),
-            Page::B => unique_textbox::<PageB>("b", None),
+            Page::A => {
+                textbox("a", None);
+            }
+            Page::B => {
+                textbox("b", None);
+            }
         };
     });
 }
