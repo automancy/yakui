@@ -39,6 +39,7 @@ impl ColoredBox {
         }
     }
 
+    #[track_caller]
     pub fn show(self) -> Response<ColoredBoxResponse> {
         widget::<ColoredBoxWidget>(self)
     }

@@ -27,6 +27,7 @@ impl RoundRect {
         }
     }
 
+    #[track_caller]
     pub fn show(self) -> Response<RoundRectResponse> {
         widget::<RoundRectWidget>(self)
     }

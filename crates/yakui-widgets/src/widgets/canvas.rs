@@ -23,6 +23,7 @@ impl Canvas {
         }
     }
 
+    #[track_caller]
     pub fn show(self) -> Response<CanvasResponse> {
         widget::<CanvasWidget>(self)
     }

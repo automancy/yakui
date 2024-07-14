@@ -25,6 +25,7 @@ impl Circle {
         }
     }
 
+    #[track_caller]
     pub fn show(self) -> Response<CircleResponse> {
         widget::<CircleWidget>(self)
     }
