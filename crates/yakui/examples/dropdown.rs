@@ -51,6 +51,19 @@ pub fn run() {
                             });
                         }
                     });
+
+                    if button("Bottom Button").clicked {
+                        println!("Bottom button clicked");
+                    }
+                    if button("Bottom Button").clicked {
+                        println!("Bottom button clicked");
+                    }
+                    if button("Bottom Button").clicked {
+                        println!("Bottom button clicked");
+                    }
+                    if button("Bottom Button").clicked {
+                        println!("Bottom button clicked");
+                    }
                 });
             });
         });

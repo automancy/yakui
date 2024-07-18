@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 
 use glam::Vec2;
-use thunderdome::{Arena, Index};
+use thunderdome::Arena;
 
 use crate::dom::Dom;
 use crate::event::EventInterest;
@@ -19,7 +19,7 @@ use crate::Flow;
 pub struct LayoutDom {
     nodes: Arena<LayoutDomNode>,
     clip_stack: Arena<Vec<WidgetId>>,
-    current_clip_stack: Option<Index>,
+    current_clip_stack: Vec<WidgetId>,
 
     unscaled_viewport: Rect,
     scale_factor: f32,
@@ -34,21 +34,18 @@ pub struct LayoutDomNode {
     /// The bounding rectangle of the node in logical pixels.
     pub rect: Rect,
 
-    /// This node will clip its descendants to its bounding rectangle.
-    pub clipping_enabled: bool,
-
     /// This node is the beginning of a new layer, and all of its descendants
     /// should be hit tested and painted with higher priority.
     pub new_layer: bool,
+
+    /// The clipping rectangle of the node in logical pixels, this is clipped by all the parents.
+    pub clip: Rect,
 
     /// This node is clipped to the region defined by the given node.
     pub clipped_by: Option<WidgetId>,
 
     /// What events the widget reported interest in.
     pub event_interest: EventInterest,
-
-    /// Which clip stack the widget belongs in.
-    pub clip_stack_id: Index,
 }
 
 impl LayoutDom {
@@ -57,7 +54,7 @@ impl LayoutDom {
         Self {
             nodes: Arena::new(),
             clip_stack: Arena::new(),
-            current_clip_stack: None,
+            current_clip_stack: Vec::new(),
 
             unscaled_viewport: Rect::ONE,
             scale_factor: 1.0,
@@ -126,7 +123,7 @@ impl LayoutDom {
         log::debug!("LayoutDom::calculate_all()");
 
         self.clip_stack.clear();
-        self.current_clip_stack = None;
+        self.current_clip_stack.clear();
         self.interests.clear();
 
         let constraints = Constraints::tight(self.viewport().size());
@@ -178,13 +175,13 @@ impl LayoutDom {
             self.interests.pop_layer();
         }
 
-        if self.current_clip_stack.is_none() {
-            self.enable_clipping(dom);
+        if self.current_clip_stack.is_empty() {
+            self.new_clip_stack(dom);
         }
 
         // There should always be a currently active clip stack.
-        let clip_stack_id = self.current_clip_stack.unwrap();
-        let clip_stack = self.clip_stack.get_mut(clip_stack_id).unwrap();
+        let clip_stack_id = self.current_clip_stack.last().unwrap();
+        let clip_stack = self.clip_stack.get_mut(clip_stack_id.index()).unwrap();
 
         // If the widget called enable_clipping() during layout, it will be on
         // top of the clip stack at this point.
@@ -198,15 +195,15 @@ impl LayoutDom {
             clip_stack.last().copied()
         };
 
+        let rect = Rect::from_pos_size(Vec2::ZERO, size);
         self.nodes.insert_at(
             id.index(),
             LayoutDomNode {
-                rect: Rect::from_pos_size(Vec2::ZERO, size),
-                clipping_enabled,
+                rect,
                 new_layer,
+                clip: rect,
                 clipped_by,
                 event_interest,
-                clip_stack_id,
             },
         );
 
@@ -214,28 +211,35 @@ impl LayoutDom {
             clip_stack.pop();
         }
 
+        if *clip_stack_id == id {
+            self.current_clip_stack.pop();
+        }
+
         dom.exit(id);
         size
     }
 
+    fn push_new_clip_stack(&mut self, id: WidgetId) {
+        self.current_clip_stack.push(id);
+        let old = self.clip_stack.insert_at(id.index(), Vec::new());
+        debug_assert!(old.is_none(), "clip_stack id clashed");
+    }
+
     /// Enables clipping for the currently active widget.
     pub fn enable_clipping(&mut self, dom: &Dom) {
-        if self.current_clip_stack.is_none() {
-            self.current_clip_stack = Some(dom.current().index());
-            self.clip_stack.insert_at(dom.current().index(), Vec::new());
+        if self.current_clip_stack.is_empty() {
+            self.push_new_clip_stack(dom.current());
         }
 
         self.clip_stack
-            .get_mut(self.current_clip_stack.unwrap())
+            .get_mut(self.current_clip_stack.last().unwrap().index())
             .unwrap()
             .push(dom.current());
     }
 
     /// Create a new clip stack for the currently active widget.
     pub fn new_clip_stack(&mut self, dom: &Dom) {
-        self.current_clip_stack = Some(dom.current().index());
-        let old = self.clip_stack.insert_at(dom.current().index(), Vec::new());
-        debug_assert!(old.is_none(), "clip_stack id clashed");
+        self.push_new_clip_stack(dom.current());
         self.enable_clipping(dom);
     }
 
@@ -258,19 +262,36 @@ impl LayoutDom {
         queue.push_back((dom.root(), Vec2::ZERO));
 
         while let Some((id, parent_pos)) = queue.pop_front() {
-            if let Some(layout_node) = self.nodes.get_mut(id.index()) {
+            if let Some((Some(layout_node), parent_node)) = self
+                .nodes
+                .get(id.index())
+                .map(|node| (id, node.clipped_by.unwrap_or(id)))
+                .map(|(a, b)| {
+                    if a == b {
+                        (self.nodes.get_mut(a.index()), None)
+                    } else {
+                        self.nodes.get2_mut(a.index(), b.index())
+                    }
+                })
+            {
                 let node = dom.get(id).unwrap();
 
                 if let Flow::Absolute { anchor, offset } = node.widget.flow() {
                     let anchor = viewport.size() * anchor.as_vec2();
                     let offset = offset.resolve(viewport.size());
 
-                    layout_node.rect.set_pos(anchor + offset);
+                    let p = anchor + offset;
+                    layout_node.rect.set_pos(p);
                 } else {
-                    layout_node
-                        .rect
-                        .set_pos(layout_node.rect.pos() + parent_pos);
+                    let p = layout_node.rect.pos() + parent_pos;
+                    layout_node.rect.set_pos(p);
                 }
+
+                let mut clip = layout_node.rect;
+                if let Some(parent) = parent_node {
+                    clip = parent.clip.constrain(clip);
+                }
+                layout_node.clip = clip;
 
                 queue.extend(node.children.iter().map(|&id| (id, layout_node.rect.pos())));
             }

@@ -37,9 +37,7 @@ pub struct PaintDom {
     limits: PaintLimits,
 
     layers: PaintLayers,
-    clip_stack: Arena<Rect>,
-    currently_clipped_by: Option<WidgetId>,
-    previous_clip: Option<Rect>,
+    current_clip: Option<Rect>,
 }
 
 impl PaintDom {
@@ -54,9 +52,7 @@ impl PaintDom {
             limits: PaintLimits::default(),
 
             layers: PaintLayers::new(),
-            clip_stack: Arena::new(),
-            currently_clipped_by: None,
-            previous_clip: None,
+            current_clip: None,
         }
     }
 
@@ -73,9 +69,6 @@ impl PaintDom {
     /// Prepares the PaintDom to be updated for the frame.
     pub fn start(&mut self) {
         self.texture_edits.clear();
-        self.clip_stack.clear();
-        self.currently_clipped_by = None;
-        self.previous_clip = None;
     }
 
     /// Returns the size of the surface that is being painted onto.
@@ -109,45 +102,25 @@ impl PaintDom {
             self.layers.push();
         }
 
-        if layout_node.clipping_enabled {
-            self.push_clip(layout_node.rect, id);
-            self.currently_clipped_by = Some(id);
-        } else if layout_node.clipped_by.is_some() {
-            self.currently_clipped_by = layout_node.clipped_by;
-            self.push_clip(
-                layout.get(layout_node.clipped_by.unwrap()).unwrap().rect,
-                layout_node.clipped_by.unwrap(),
-            );
-        };
-
-        let mut draw = true;
-        if let Some((prev, clip)) = self.previous_clip.zip(self.get_current_clip()) {
-            draw = prev.intersects(&clip);
-        }
+        self.current_clip = Some(layout_node.clip);
 
         dom.enter(id);
 
-        if draw {
-            let context = PaintContext {
-                dom,
-                layout,
-                paint: self,
-            };
-            let node = dom.get(id).unwrap();
-            node.widget.paint(context);
-        }
+        let context = PaintContext {
+            dom,
+            layout,
+            paint: self,
+        };
+        let node = dom.get(id).unwrap();
+        node.widget.paint(context);
 
         dom.exit(id);
 
-        if layout_node.clipping_enabled {
-            self.pop_clip(id);
-        }
+        self.current_clip = None;
 
         if layout_node.new_layer {
             self.layers.pop();
         }
-
-        self.currently_clipped_by = None
     }
 
     /// Paint all of the widgets in the given DOM.
@@ -156,6 +129,7 @@ impl PaintDom {
         log::debug!("PaintDom:paint_all()");
 
         self.layers.clear();
+        self.current_clip = None;
         self.paint(dom, layout, dom.root());
     }
 
@@ -221,8 +195,7 @@ impl PaintDom {
 
     /// Returns the current clip rect
     pub fn get_current_clip(&self) -> Option<Rect> {
-        self.currently_clipped_by
-            .and_then(|id| self.clip_stack.get(id.index()).cloned())
+        self.current_clip
     }
 
     /// Add a mesh to be painted.
@@ -288,33 +261,5 @@ impl PaintDom {
             vertex
         });
         call.vertices.extend(vertices);
-    }
-
-    /// Use the given region as the clipping rect for all following paint calls.
-    fn push_clip(&mut self, region: Rect, id: WidgetId) {
-        let mut unscaled = Rect::from_pos_size(
-            region.pos() * self.scale_factor,
-            region.size() * self.scale_factor,
-        );
-
-        let previous = self.get_current_clip();
-
-        if let Some(previous) = previous {
-            unscaled = unscaled.constrain(previous);
-        }
-
-        self.clip_stack.insert_at(id.index(), unscaled);
-
-        self.previous_clip = previous;
-    }
-
-    /// Pop the most recent clip region, restoring the previous clipping rect.
-    fn pop_clip(&mut self, id: WidgetId) {
-        let top = self.clip_stack.remove(id.index());
-
-        debug_assert!(
-            top.is_some(),
-            "cannot call pop_clip without a corresponding push_clip call"
-        );
     }
 }
