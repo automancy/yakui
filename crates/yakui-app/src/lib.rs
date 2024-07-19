@@ -61,6 +61,7 @@ impl Graphics {
                     } else {
                         wgpu::Limits::default()
                     },
+                    memory_hints: Default::default(),
                     label: None,
                 },
                 None, // Trace path
