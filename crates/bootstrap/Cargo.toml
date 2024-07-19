@@ -19,7 +19,6 @@ image = { version = "0.24.2", default-features = false, features = ["png"] }
 log = "0.4.17"
 pollster = "0.3.0"
 profiling = "1.0.6"
+wgpu = "22.0.0"
 tracy-client = { version = "0.15.1", optional = true }
-
 winit = "0.30.0"
-wgpu = "0.20.1"
