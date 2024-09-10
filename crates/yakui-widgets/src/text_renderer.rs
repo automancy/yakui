@@ -29,7 +29,7 @@ impl Kind {
 }
 
 pub struct GlyphRender {
-    pub kind: Kind,
+    pub(crate) kind: Kind,
     pub rect: URect,
     pub offset: Vec2,
     pub tex_rect: Rect,
@@ -38,7 +38,7 @@ pub struct GlyphRender {
 
 #[derive(Debug)]
 pub struct InnerAtlas {
-    pub kind: Kind,
+    pub(crate) kind: Kind,
     pub texture: Option<ManagedTextureId>,
     pub glyph_rects: HashMap<cosmic_text::CacheKey, (URect, Vec2)>,
     next_pos: UVec2,
