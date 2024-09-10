@@ -18,6 +18,7 @@ Responds with [RenderTextBoxResponse].
 */
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
+#[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct RenderText {
     pub text: String,
     pub style: TextStyle,
