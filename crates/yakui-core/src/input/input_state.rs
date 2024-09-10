@@ -141,7 +141,6 @@ impl InputState {
             .borrow()
             .position
             .map(|p| p / layout.scale_factor())
-            .clone()
     }
 
     pub(crate) fn handle_event(
