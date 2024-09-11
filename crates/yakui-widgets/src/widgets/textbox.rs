@@ -66,19 +66,15 @@ impl TextBox {
         }
     }
 
-    #[track_caller]
-    pub fn show_with_text(
-        initial_text: &str,
-        updated_text: Option<&str>,
-    ) -> Response<TextBoxResponse> {
+    pub fn with_text(initial_text: &str, updated_text: Option<&str>) -> TextBox {
         let first_time = use_state(|| true);
 
         if first_time.get() {
             first_time.set(false);
 
-            TextBox::new(Some(initial_text.into())).show()
+            TextBox::new(Some(initial_text.into()))
         } else {
-            TextBox::new(updated_text.map(Into::into)).show()
+            TextBox::new(updated_text.map(Into::into))
         }
     }
 
