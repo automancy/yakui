@@ -102,7 +102,12 @@ impl PaintDom {
             self.layers.push();
         }
 
-        self.current_clip = Some(layout_node.clip);
+        let recip_scale = layout.scale_factor().recip();
+        self.current_clip = Some(
+            layout_node
+                .clip
+                .div_vec2(Vec2::new(recip_scale, recip_scale)),
+        );
 
         dom.enter(id);
 
