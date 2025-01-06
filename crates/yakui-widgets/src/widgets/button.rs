@@ -7,7 +7,7 @@ use yakui_core::widget::{EventContext, Widget};
 use yakui_core::{Alignment, Response};
 
 use crate::colors;
-use crate::style::TextStyle;
+use crate::style::{TextAlignment, TextStyle};
 use crate::util::widget;
 use crate::widgets::Pad;
 
@@ -31,7 +31,6 @@ if yakui::button("Hello").clicked {
 #[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct Button {
     pub text: Cow<'static, str>,
-    pub alignment: Alignment,
     pub padding: Pad,
     pub border_radius: f32,
     pub style: DynamicButtonStyle,
@@ -48,8 +47,11 @@ pub struct DynamicButtonStyle {
 
 impl Default for DynamicButtonStyle {
     fn default() -> Self {
+        let mut text = TextStyle::label();
+        text.align = TextAlignment::Center;
+
         Self {
-            text: TextStyle::label(),
+            text,
             fill: Color::GRAY,
         }
     }
@@ -59,7 +61,6 @@ impl Button {
     pub fn unstyled(text: impl Into<Cow<'static, str>>) -> Self {
         Self {
             text: text.into(),
-            alignment: Alignment::CENTER,
             padding: Pad::ZERO,
             border_radius: 0.0,
             style: DynamicButtonStyle::default(),
@@ -84,9 +85,11 @@ impl Button {
             ..Default::default()
         };
 
+        let mut text_style = TextStyle::label();
+        text_style.align = TextAlignment::Center;
+
         Self {
             text: text.into(),
-            alignment: Alignment::CENTER,
             padding: Pad::balanced(20.0, 10.0),
             border_radius: 6.0,
             style,
@@ -144,12 +147,20 @@ impl Widget for ButtonWidget {
             text_style = style.text.clone();
         }
 
+        let alignment = match text_style.align {
+            TextAlignment::Start => Alignment::CENTER_LEFT,
+            TextAlignment::Center => Alignment::CENTER,
+            TextAlignment::End => Alignment::CENTER_RIGHT,
+        };
+
         let mut container = RoundRect::new(self.props.border_radius);
         container.color = color;
         container.show_children(|| {
             crate::pad(self.props.padding, || {
-                crate::align(self.props.alignment, || {
-                    RenderText::with_style(self.props.text.clone(), text_style).show();
+                crate::align(alignment, || {
+                    let mut text = RenderText::label(self.props.text.clone());
+                    text.style = text_style;
+                    text.show();
                 });
             });
         });

@@ -114,9 +114,8 @@ pub fn label<S: Into<Cow<'static, str>>>(text: S) -> Response<TextResponse> {
 }
 
 /// See [TextBox].
-#[track_caller]
-pub fn textbox(initial_text: &str, updated_text: Option<&str>) -> Response<TextBoxResponse> {
-    TextBox::with_text(initial_text, updated_text).show()
+pub fn textbox<S: Into<String>>(text: S) -> Response<TextBoxResponse> {
+    TextBox::new(text.into()).show()
 }
 
 /// See [Flexible].

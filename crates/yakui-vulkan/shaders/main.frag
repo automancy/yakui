@@ -20,15 +20,8 @@ void main() {
     } 
     
     if (workflow == WORKFLOW_TEXT) {
-        vec4 coverage = texture(textures[texture_id], in_uv);
-
-        if (in_color.a > 0.0) {
-            float alpha = max(max(coverage.r, coverage.g), coverage.b) * in_color.a * coverage.a;
-
-            out_color = vec4(in_color.rgb * alpha, alpha);
-        } else {
-            out_color = coverage;
-        }
+        float coverage = texture(textures[texture_id], in_uv).r;
+        out_color = in_color * coverage;
     } else {
         vec4 user_texture = texture(textures[texture_id], in_uv);
         out_color = in_color * user_texture;

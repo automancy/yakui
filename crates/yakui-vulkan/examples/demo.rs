@@ -45,11 +45,10 @@ fn main() {
             &vulkan_test.device,
             vulkan_test.present_queue,
             vulkan_test.device_memory_properties,
-            vulkan_test.device_properties,
         );
         let mut options = yakui_vulkan::Options::default();
         options.render_pass = vulkan_test.render_pass;
-        let mut yakui_vulkan = YakuiVulkan::new(&mut yak, &vulkan_context, options);
+        let mut yakui_vulkan = YakuiVulkan::new(&vulkan_context, options);
         // Prepare for one frame in flight
         yakui_vulkan.transfers_submitted();
         let gui_state = GuiState {
@@ -94,7 +93,6 @@ fn main() {
                 &vulkan_test.device,
                 vulkan_test.present_queue,
                 vulkan_test.device_memory_properties,
-                vulkan_test.device_properties,
             );
 
             yak.start();
@@ -234,7 +232,6 @@ struct VulkanTest {
     instance: ash::Instance,
     surface_loader: ash::khr::surface::Instance,
     device_memory_properties: vk::PhysicalDeviceMemoryProperties,
-    device_properties: vk::PhysicalDeviceProperties,
 
     present_queue: vk::Queue,
 
@@ -514,8 +511,6 @@ impl VulkanTest {
         let device_memory_properties =
             unsafe { instance.get_physical_device_memory_properties(physical_device) };
 
-        let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
-
         Self {
             device,
             physical_device,
@@ -525,7 +520,6 @@ impl VulkanTest {
             surface_loader,
             swapchain_info,
             device_memory_properties,
-            device_properties,
             surface,
             swapchain,
             present_image_views,

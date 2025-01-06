@@ -74,7 +74,7 @@ impl Widget for KeyboardWidget {
     }
 
     fn event(&mut self, _ctx: EventContext<'_>, event: &WidgetEvent) -> EventResponse {
-        if let WidgetEvent::TextInput(..) = event {
+        if let WidgetEvent::TextInput(_) = event {
             self.count.fetch_add(1, Ordering::SeqCst);
         }
 

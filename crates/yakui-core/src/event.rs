@@ -103,7 +103,7 @@ pub enum WidgetEvent {
     },
 
     /// Text was sent to the widget.
-    TextInput(char, Modifiers),
+    TextInput(char),
 
     /// The widget was focused or unfocused.
     FocusChanged(bool),
