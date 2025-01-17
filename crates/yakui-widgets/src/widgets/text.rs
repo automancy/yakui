@@ -28,7 +28,6 @@ text.show();
 ```
 */
 #[derive(Debug)]
-#[non_exhaustive]
 #[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct Text {
     pub text: Cow<'static, str>,
@@ -41,6 +40,14 @@ impl Text {
         let mut style = TextStyle::label();
         style.font_size = font_size;
 
+        Self {
+            text: text.into(),
+            style,
+            padding: Pad::ZERO,
+        }
+    }
+
+    pub fn with_style<S: Into<Cow<'static, str>>>(text: S, style: TextStyle) -> Self {
         Self {
             text: text.into(),
             style,
@@ -82,7 +89,7 @@ impl Widget for TextWidget {
     fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
         self.props = props;
 
-        let mut render = RenderText::label(self.props.text.clone());
+        let mut render = RenderText::new(self.props.text.clone());
         render.style = self.props.style.clone();
 
         pad(self.props.padding, || {

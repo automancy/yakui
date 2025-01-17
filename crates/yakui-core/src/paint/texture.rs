@@ -31,11 +31,14 @@ impl std::fmt::Debug for Texture {
 
 /// A texture format that yakui can manage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum TextureFormat {
     /// Red, green, blue, and alpha channels, each represented as a `u8`. The
     /// color channels are sRGB-encoded.
     Rgba8Srgb,
+
+    /// Red, green, blue, and alpha channels, each represented as a `u8`. The
+    /// color channels are sRGB-encoded and premultiplied by the alpha.
+    Rgba8SrgbPremultiplied,
 
     /// A single color channel represented as a `u8`.
     R8,

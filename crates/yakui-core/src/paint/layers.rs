@@ -6,7 +6,6 @@ use super::PaintCall;
 
 /// Contains all of the draw calls for a single layer of the UI.
 #[derive(Debug)]
-#[non_exhaustive]
 pub struct PaintLayer {
     /// The draw calls that can be used to paint this layer.
     pub calls: Vec<(PaintCall, Option<Rect>)>,

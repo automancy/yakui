@@ -1,21 +1,5 @@
 #![deny(missing_docs)]
-
-//! A Vulkan backend for the [`yakui`] crate. Uses [`ash`] to wrap Vulkan related functionality.
-//!
-//! The main entrypoint is the [`YakuiVulkan`] struct which creates a [`ash::vk::RenderPass`] and [`ash::vk::Pipeline`]
-//! to draw yakui GUIs. This is initialised by populating a [`VulkanContext`] helper struct to pass down the relevant hooks
-//! into your Vulkan renderer.
-//!
-//! Like most Vulkan applications, this crate uses unsafe Rust! No checks are made to ensure that Vulkan handles are valid,
-//! so take note of the safety warnings on the various methods of [`YakuiVulkan`].
-//!
-//! Currently this crate only supports drawing to images in the `VK_IMAGE_LAYOUT_PRESENT_SRC_KHR` layout, but future
-//! releases will support drawing to any arbitrary [`vk::ImageView`].
-//!
-//! This crate requires at least Vulkan 1.2 and a GPU with support for `VkPhysicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound`.
-//! You should also, you know, enable that feature, or Vulkan Validation Layers will get mad at you. You definitely don't want that.
-//!
-//! For an example of how to use this crate, check out `examples/demo.rs`
+#![doc = include_str!("../README.md")]
 
 mod buffer;
 mod descriptors;
@@ -32,9 +16,11 @@ use std::{collections::HashMap, ffi::CStr, io::Cursor};
 pub use vulkan_context::VulkanContext;
 use vulkan_texture::{UploadQueue, NO_TEXTURE_ID};
 pub use vulkan_texture::{VulkanTexture, VulkanTextureCreateInfo};
-use yakui::geometry::UVec2;
-use yakui::paint::PaintCall;
-use yakui::{paint::Vertex as YakuiVertex, ManagedTextureId};
+use yakui_core::geometry::UVec2;
+use yakui_core::paint::PaintCall;
+use yakui_core::paint::PaintLimits;
+use yakui_core::TextureId;
+use yakui_core::{paint::Vertex as YakuiVertex, ManagedTextureId};
 
 /// A struct wrapping everything needed to render yakui on Vulkan. This will be your main entry point.
 ///
@@ -66,7 +52,6 @@ pub struct YakuiVulkan {
 }
 
 /// Vulkan configuration
-#[non_exhaustive]
 #[derive(Default)]
 pub struct Options {
     /// Indicates that VK_KHR_dynamic_rendering is enabled and should be used with the given format
@@ -82,7 +67,7 @@ pub struct Options {
 struct DrawCall {
     index_offset: u32,
     index_count: u32,
-    clip: Option<yakui::geometry::Rect>,
+    clip: Option<yakui_core::geometry::Rect>,
     texture_id: u32,
     workflow: Workflow,
 }
@@ -118,12 +103,11 @@ enum Workflow {
 unsafe impl bytemuck::Zeroable for Workflow {}
 unsafe impl bytemuck::Pod for Workflow {}
 
-impl From<yakui::paint::Pipeline> for Workflow {
-    fn from(p: yakui::paint::Pipeline) -> Self {
+impl From<yakui_core::paint::Pipeline> for Workflow {
+    fn from(p: yakui_core::paint::Pipeline) -> Self {
         match p {
-            yakui::paint::Pipeline::Main => Workflow::Main,
-            yakui::paint::Pipeline::Text => Workflow::Text,
-            _ => panic!("Unknown pipeline {p:?}"),
+            yakui_core::paint::Pipeline::Main => Workflow::Main,
+            yakui_core::paint::Pipeline::Text => Workflow::Text,
         }
     }
 }
@@ -131,9 +115,9 @@ impl From<yakui::paint::Pipeline> for Workflow {
 #[repr(C)]
 #[derive(Clone, Copy, Default, Debug)]
 struct Vertex {
-    position: yakui::geometry::Vec2,
-    texcoord: yakui::geometry::Vec2,
-    color: yakui::geometry::Vec4,
+    position: yakui_core::geometry::Vec2,
+    texcoord: yakui_core::geometry::Vec2,
+    color: yakui_core::geometry::Vec4,
 }
 
 impl From<&YakuiVertex> for Vertex {
@@ -152,7 +136,17 @@ impl YakuiVulkan {
     /// ## Safety
     /// - `vulkan_context` must have valid members
     /// - the members of `render_surface` must have been created with the same [`ash::Device`] as `vulkan_context`.
-    pub fn new(vulkan_context: &VulkanContext, options: Options) -> Self {
+    pub fn new(
+        state: &mut yakui_core::Yakui,
+        vulkan_context: &VulkanContext,
+        options: Options,
+    ) -> Self {
+        state.set_paint_limit(PaintLimits {
+            max_texture_size_1d: vulkan_context.properties.limits.max_image_dimension1_d,
+            max_texture_size_2d: vulkan_context.properties.limits.max_image_dimension2_d,
+            max_texture_size_3d: vulkan_context.properties.limits.max_image_dimension3_d,
+        });
+
         let device = vulkan_context.device;
         let descriptors = Descriptors::new(vulkan_context);
 
@@ -517,7 +511,7 @@ impl YakuiVulkan {
         }
     }
 
-    /// Create and add a "user managed" texture to this [`YakuiVulkan`] instance. Returns a [`yakui::TextureId`] that can be used
+    /// Create and add a "user managed" texture to this [`YakuiVulkan`] instance. Returns a [`yakui_core::TextureId`] that can be used
     /// to refer to the texture in your GUI code.
     ///
     /// ## Safety
@@ -526,24 +520,24 @@ impl YakuiVulkan {
         &mut self,
         vulkan_context: &VulkanContext,
         texture_create_info: VulkanTextureCreateInfo<Vec<u8>>,
-    ) -> yakui::TextureId {
+    ) -> yakui_core::TextureId {
         let texture = VulkanTexture::new(
             vulkan_context,
             &mut self.descriptors,
             texture_create_info,
             &mut self.uploads,
         );
-        yakui::TextureId::User(self.user_textures.insert(texture).to_bits())
+        yakui_core::TextureId::User(self.user_textures.insert(texture).to_bits())
     }
 
     /// Add a "user managed" texture to this [`YakuiVulkan`] instance from an existing [`ash::vk::Image`].
-    /// Returns a [`yakui::TextureId`] that can be used to refer to the texture in your GUI code.
+    /// Returns a [`yakui_core::TextureId`] that can be used to refer to the texture in your GUI code.
     ///
     /// ## Safety
     /// - `vulkan_context` must be the same as the one used to create this instance
     /// - `image` must have been created from the same `vulkan_context`
-    pub fn add_user_texture(&mut self, texture: VulkanTexture) -> yakui::TextureId {
-        yakui::TextureId::User(self.user_textures.insert(texture).to_bits())
+    pub fn add_user_texture(&mut self, texture: VulkanTexture) -> yakui_core::TextureId {
+        yakui_core::TextureId::User(self.user_textures.insert(texture).to_bits())
     }
 
     /// Clean up all Vulkan related handles on this instance. You'll probably want to call this when the program ends, but
@@ -575,8 +569,12 @@ impl YakuiVulkan {
         &mut self.descriptors
     }
 
-    fn update_textures(&mut self, vulkan_context: &VulkanContext, paint: &yakui::paint::PaintDom) {
-        use yakui::paint::TextureChange;
+    fn update_textures(
+        &mut self,
+        vulkan_context: &VulkanContext,
+        paint: &yakui_core::paint::PaintDom,
+    ) {
+        use yakui_core::paint::TextureChange;
         if !self.initial_textures_synced {
             self.initial_textures_synced = true;
             for (id, texture) in paint.textures() {
@@ -635,7 +633,7 @@ impl YakuiVulkan {
     fn build_draw_calls(
         &mut self,
         vulkan_context: &VulkanContext,
-        paint: &yakui::paint::PaintDom,
+        paint: &yakui_core::paint::PaintDom,
     ) -> Vec<DrawCall> {
         let mut vertices: Vec<Vertex> = Default::default();
         let mut indices: Vec<u32> = Default::default();
@@ -660,11 +658,11 @@ impl YakuiVulkan {
                     let texture_id = call
                         .texture
                         .and_then(|id| match id {
-                            yakui::TextureId::Managed(managed) => {
+                            TextureId::Managed(managed) => {
                                 let texture = self.yakui_managed_textures.get(&managed)?;
                                 Some(texture.id)
                             }
-                            yakui::TextureId::User(bits) => {
+                            TextureId::User(bits) => {
                                 let texture = self
                                     .user_textures
                                     .get(thunderdome::Index::from_bits(bits)?)?;
@@ -681,6 +679,7 @@ impl YakuiVulkan {
                         workflow: call.pipeline.into(),
                     });
                 }
+
                 (PaintCall::Custom(_), ..) => todo!(),
             }
         }

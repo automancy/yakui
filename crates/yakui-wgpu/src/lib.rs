@@ -1,4 +1,5 @@
 #![allow(clippy::new_without_default)]
+#![doc = include_str!("../README.md")]
 
 mod bindgroup_cache;
 mod buffer;
@@ -16,7 +17,9 @@ use bytemuck::{Pod, Zeroable};
 use glam::UVec2;
 use thunderdome::{Arena, Index};
 use yakui_core::geometry::{Rect, Vec2, Vec4};
-use yakui_core::paint::{PaintCall, PaintDom, Pipeline, Texture, TextureChange, TextureFormat};
+use yakui_core::paint::{
+    PaintCall, PaintDom, PaintLimits, Pipeline, Texture, TextureChange, TextureFormat,
+};
 use yakui_core::{ManagedTextureId, TextureId};
 
 use self::bindgroup_cache::TextureBindgroupCache;
@@ -58,6 +61,7 @@ impl CallbackTrait<()> for () {
 }
 
 pub struct YakuiWgpu<T> {
+    limits: PaintLimits,
     main_pipeline: PipelineCache,
     text_pipeline: PipelineCache,
     samplers: Samplers,
@@ -103,6 +107,12 @@ impl Vertex {
 
 impl<T> YakuiWgpu<T> {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        let limits = PaintLimits {
+            max_texture_size_1d: device.limits().max_texture_dimension_1d,
+            max_texture_size_2d: device.limits().max_texture_dimension_2d,
+            max_texture_size_3d: device.limits().max_texture_dimension_3d,
+        };
+
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("yakui Bind Group Layout"),
             entries: &[
@@ -158,6 +168,7 @@ impl<T> YakuiWgpu<T> {
         );
 
         Self {
+            limits,
             main_pipeline,
             text_pipeline,
             samplers,
@@ -269,6 +280,7 @@ impl<T> YakuiWgpu<T> {
             label: Some("yakui Callback Encoder"),
         });
 
+        state.set_paint_limit(self.limits);
         let paint = state.paint();
 
         self.update_textures(device, paint, queue);
@@ -320,29 +332,27 @@ impl<T> YakuiWgpu<T> {
         let surface = paint.surface_size().as_uvec2();
 
         for command in &mut self.commands {
-            if let (DrawCommand::Custom(command), clip) = command {
-                if let Some(clip) = clip {
-                    let pos = clip.pos().as_uvec2();
-                    let size = clip.size().as_uvec2();
+            if let (DrawCommand::Custom(command), Some(clip)) = command {
+                let pos = clip.pos().as_uvec2();
+                let size = clip.size().as_uvec2();
 
-                    let max = (pos + size).min(surface);
-                    let size = UVec2::new(max.x.saturating_sub(pos.x), max.y.saturating_sub(pos.y));
+                let max = (pos + size).min(surface);
+                let size = UVec2::new(max.x.saturating_sub(pos.x), max.y.saturating_sub(pos.y));
 
-                    // If the rect isn't valid, we can skip this
-                    // entire draw call.
-                    if pos.x > surface.x || pos.y > surface.y || size.x == 0 || size.y == 0 {
-                        continue;
-                    }
-
-                    render_pass.set_viewport(
-                        pos.x as f32,
-                        pos.y as f32,
-                        size.x as f32,
-                        size.y as f32,
-                        0.0,
-                        1.0,
-                    );
+                // If the rect isn't valid, we can skip this
+                // entire draw call.
+                if pos.x > surface.x || pos.y > surface.y || size.x == 0 || size.y == 0 {
+                    continue;
                 }
+
+                render_pass.set_viewport(
+                    pos.x as f32,
+                    pos.y as f32,
+                    size.x as f32,
+                    size.y as f32,
+                    0.0,
+                    1.0,
+                );
 
                 render_pass.set_scissor_rect(0, 0, surface.x, surface.y);
 
@@ -619,13 +629,13 @@ fn make_main_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: &main_shader,
-            entry_point: "vs_main",
+            entry_point: None,
             buffers: &[Vertex::DESCRIPTOR],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &main_shader,
-            entry_point: "fs_main",
+            entry_point: None,
             targets: &[Some(wgpu::ColorTargetState {
                 format,
                 blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
@@ -675,13 +685,13 @@ fn make_text_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: &text_shader,
-            entry_point: "vs_main",
+            entry_point: None,
             buffers: &[Vertex::DESCRIPTOR],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &text_shader,
-            entry_point: "fs_main",
+            entry_point: None,
             targets: &[Some(wgpu::ColorTargetState {
                 format,
                 blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
