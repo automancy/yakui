@@ -7,11 +7,17 @@ enum Page {
 }
 
 #[track_caller]
-fn rowded_textbox(initial_text: &str) {
+fn rowded_textbox(initial_text: &'static str) {
+    let text = use_state(|| initial_text.to_owned());
+
     row(|| {
         row(|| {
             row(|| {
-                textbox(initial_text, None);
+                let response = textbox(text.borrow().clone()).into_inner();
+
+                if let Some(new_text) = response.text {
+                    text.set(new_text);
+                }
             });
         });
     });
