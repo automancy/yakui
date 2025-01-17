@@ -27,9 +27,10 @@ if yakui::button("Hello").clicked {
 ```
 */
 #[derive(Debug)]
-#[non_exhaustive]
+#[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct Button {
     pub text: Cow<'static, str>,
+    pub alignment: Alignment,
     pub padding: Pad,
     pub border_radius: f32,
     pub style: DynamicButtonStyle,
@@ -39,7 +40,6 @@ pub struct Button {
 
 /// Contains styles that can vary based on the state of the button.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub struct DynamicButtonStyle {
     pub text: TextStyle,
     pub fill: Color,
@@ -61,6 +61,7 @@ impl Button {
     pub fn unstyled(text: impl Into<Cow<'static, str>>) -> Self {
         Self {
             text: text.into(),
+            alignment: Alignment::CENTER,
             padding: Pad::ZERO,
             border_radius: 0.0,
             style: DynamicButtonStyle::default(),
@@ -85,11 +86,9 @@ impl Button {
             ..Default::default()
         };
 
-        let mut text_style = TextStyle::label();
-        text_style.align = TextAlignment::Center;
-
         Self {
             text: text.into(),
+            alignment: Alignment::CENTER,
             padding: Pad::balanced(20.0, 10.0),
             border_radius: 6.0,
             style,
@@ -146,7 +145,7 @@ impl Widget for ButtonWidget {
             text_style = style.text.clone();
         }
 
-        let alignment = match text_style.align {
+        let align = match text_style.align {
             TextAlignment::Start => Alignment::CENTER_LEFT,
             TextAlignment::Center => Alignment::CENTER,
             TextAlignment::End => Alignment::CENTER_RIGHT,
@@ -156,10 +155,8 @@ impl Widget for ButtonWidget {
         container.color = color;
         container.show_children(|| {
             crate::pad(self.props.padding, || {
-                crate::align(alignment, || {
-                    let mut text = RenderText::label(self.props.text.clone());
-                    text.style = text_style;
-                    text.show();
+                crate::align(align, || {
+                    RenderText::with_style(self.props.text.clone(), text_style).show();
                 });
             });
         });

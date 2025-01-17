@@ -24,7 +24,7 @@ value = yakui::checkbox(value).checked;
 ```
 */
 #[derive(Debug)]
-#[non_exhaustive]
+#[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct Checkbox {
     pub checked: bool,
 }
@@ -48,7 +48,6 @@ pub struct CheckboxWidget {
 }
 
 #[derive(Debug)]
-#[non_exhaustive]
 pub struct CheckboxResponse {
     pub checked: bool,
 }

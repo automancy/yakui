@@ -1,6 +1,7 @@
 use glam::UVec2;
 
 /// A texture that is managed by yakui.
+#[derive(Clone)]
 pub struct Texture {
     format: TextureFormat,
     size: UVec2,
@@ -11,6 +12,9 @@ pub struct Texture {
 
     /// How to filter the texture when it needs to be magnified (made larger)
     pub mag_filter: TextureFilter,
+
+    /// How to handle texture addressing
+    pub address_mode: AddressMode,
 }
 
 impl std::fmt::Debug for Texture {
@@ -20,17 +24,21 @@ impl std::fmt::Debug for Texture {
             .field("size", &self.size)
             .field("min_filter", &self.min_filter)
             .field("mag_filter", &self.mag_filter)
+            .field("address_mode", &self.address_mode)
             .finish_non_exhaustive()
     }
 }
 
 /// A texture format that yakui can manage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum TextureFormat {
     /// Red, green, blue, and alpha channels, each represented as a `u8`. The
     /// color channels are sRGB-encoded.
     Rgba8Srgb,
+
+    /// Red, green, blue, and alpha channels, each represented as a `u8`. The
+    /// color channels are sRGB-encoded and premultiplied by the alpha.
+    Rgba8SrgbPremultiplied,
 
     /// A single color channel represented as a `u8`.
     R8,
@@ -46,6 +54,16 @@ pub enum TextureFilter {
     Nearest,
 }
 
+/// Which kind of address mode to use when UVs go outside the range `[0, 1]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AddressMode {
+    /// Clamp to the edge of the texture
+    ClampToEdge,
+
+    /// Repeat the texture
+    Repeat,
+}
+
 impl Texture {
     /// Create a new texture from its format, size, and data.
     pub fn new(format: TextureFormat, size: UVec2, data: Vec<u8>) -> Self {
@@ -55,6 +73,7 @@ impl Texture {
             data,
             min_filter: TextureFilter::Nearest,
             mag_filter: TextureFilter::Linear,
+            address_mode: AddressMode::ClampToEdge,
         }
     }
 

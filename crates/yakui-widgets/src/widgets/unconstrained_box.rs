@@ -1,5 +1,3 @@
-use std::f32::INFINITY;
-
 use yakui_core::geometry::{Constraints, Vec2};
 use yakui_core::widget::{LayoutContext, Widget};
 use yakui_core::Response;
@@ -12,7 +10,7 @@ A box that renders its child with one or both of its constraint axes ignored.
 Responds with [UnconstrainedBoxResponse].
 */
 #[derive(Debug, Clone)]
-#[non_exhaustive]
+#[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct UnconstrainedBox {
     pub constrain_x: bool,
     pub constrain_y: bool,
@@ -58,13 +56,13 @@ impl Widget for UnconstrainedBoxWidget {
         let (min_x, max_x) = if self.props.constrain_x {
             (0.0, input.max.x)
         } else {
-            (0.0, INFINITY)
+            (0.0, f32::INFINITY)
         };
 
         let (min_y, max_y) = if self.props.constrain_y {
             (0.0, input.max.y)
         } else {
-            (0.0, INFINITY)
+            (0.0, f32::INFINITY)
         };
 
         let constraints = Constraints {

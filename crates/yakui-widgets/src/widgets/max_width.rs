@@ -1,5 +1,3 @@
-use std::f32::INFINITY;
-
 use yakui_core::geometry::{Constraints, Vec2};
 use yakui_core::widget::{LayoutContext, Widget};
 use yakui_core::Response;
@@ -12,7 +10,7 @@ A box that enforces a maximum width upon its children.
 Responds with [MaxWidthResponse].
 */
 #[derive(Debug, Clone)]
-#[non_exhaustive]
+#[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct MaxWidth {
     pub max_width: f32,
 }
@@ -41,7 +39,7 @@ impl Widget for MaxWidthWidget {
     fn new() -> Self {
         Self {
             props: MaxWidth {
-                max_width: INFINITY,
+                max_width: f32::INFINITY,
             },
         }
     }

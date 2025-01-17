@@ -7,12 +7,23 @@ use crate::dom::Dom;
 use crate::geometry::Rect;
 use crate::id::{ManagedTextureId, WidgetId};
 use crate::layout::LayoutDom;
-use crate::paint::PaintCall;
+use crate::paint::{PaintCall, Pipeline, YakuiPaintCall};
 use crate::widget::PaintContext;
 
 use super::layers::PaintLayers;
-use super::primitives::{PaintMesh, Vertex, YakuiPaintCall};
+use super::primitives::{PaintMesh, Vertex};
 use super::texture::{Texture, TextureChange};
+
+#[derive(Debug, Clone, Copy, Default)]
+/// Contains all information about the limits of the paint device.
+pub struct PaintLimits {
+    /// Maximum texture size of a 1D texture.
+    pub max_texture_size_1d: u32,
+    /// Maximum texture size of a 2D texture.
+    pub max_texture_size_2d: u32,
+    /// Maximum texture size of a 3D texture.
+    pub max_texture_size_3d: u32,
+}
 
 /// Contains all information about how to paint the current set of widgets.
 #[derive(Debug)]
@@ -22,6 +33,7 @@ pub struct PaintDom {
     surface_size: Vec2,
     unscaled_viewport: Rect,
     scale_factor: f32,
+    limits: Option<PaintLimits>,
 
     layers: PaintLayers,
     clip_stack: Vec<Rect>,
@@ -36,9 +48,21 @@ impl PaintDom {
             surface_size: Vec2::ONE,
             unscaled_viewport: Rect::ONE,
             scale_factor: 1.0,
+            limits: None,
+
             layers: PaintLayers::new(),
             clip_stack: Vec::new(),
         }
+    }
+
+    /// Gets the paint limits.
+    pub fn limits(&self) -> Option<PaintLimits> {
+        self.limits
+    }
+
+    /// Sets the paint limits, should be called once by rendering backends.
+    pub fn set_limit(&mut self, limits: PaintLimits) {
+        self.limits = Some(limits);
     }
 
     /// Prepares the PaintDom to be updated for the frame.
@@ -212,7 +236,18 @@ impl PaintDom {
         let vertices = mesh.vertices.into_iter().map(|mut vertex| {
             let mut pos = vertex.position * self.scale_factor;
             pos += self.unscaled_viewport.pos();
+
+            // Currently, we only round the vertices of geometry fed to the text
+            // pipeline because rounding all geometry causes hairline cracks in
+            // some geometry, like rounded rectangles.
+            //
+            // See: https://github.com/SecondHalfGames/yakui/issues/153
+            if mesh.pipeline == Pipeline::Text {
+                pos = pos.round();
+            }
+
             pos /= self.surface_size;
+
             vertex.position = pos;
             vertex
         });

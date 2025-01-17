@@ -1,11 +1,12 @@
 #![allow(clippy::new_without_default)]
+#![doc = include_str!("../README.md")]
 
+mod bindgroup_cache;
 mod buffer;
 mod pipeline_cache;
 mod samplers;
 mod texture;
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::mem::size_of;
 use std::ops::Range;
@@ -15,42 +16,26 @@ use buffer::Buffer;
 use bytemuck::{Pod, Zeroable};
 use glam::UVec2;
 use thunderdome::{Arena, Index};
-use wgpu::RenderPass;
 use yakui_core::geometry::{Rect, Vec2, Vec4};
 use yakui_core::paint::{
-    CustomPaintCall, PaintCall, PaintDom, Pipeline, Texture, TextureChange, TextureFormat,
+    PaintCall, PaintDom, PaintLimits, Pipeline, Texture, TextureChange, TextureFormat,
 };
 use yakui_core::{ManagedTextureId, TextureId};
 
+use self::bindgroup_cache::TextureBindgroupCache;
+use self::bindgroup_cache::TextureBindgroupCacheEntry;
 use self::pipeline_cache::PipelineCache;
 use self::samplers::Samplers;
 use self::texture::{GpuManagedTexture, GpuTexture};
 
-pub type YakuiWgpuPaintCall = CustomPaintCall<dyn Fn(), dyn Fn(&mut RenderPass)>;
-
-struct YakuiWgpuPaintCallWrapper(YakuiWgpuPaintCall);
-
-// FIXME Madeline Sparkles: how to assert this?
-impl From<YakuiWgpuPaintCallWrapper> for CustomPaintCall<dyn Any, dyn Any> {
-    fn from(value: YakuiWgpuPaintCallWrapper) -> Self {
-        unsafe { std::mem::transmute(value) }
-    }
-}
-
-impl From<CustomPaintCall<dyn Any, dyn Any>> for YakuiWgpuPaintCallWrapper {
-    fn from(value: CustomPaintCall<dyn Any, dyn Any>) -> Self {
-        unsafe { std::mem::transmute(value) }
-    }
-}
-
 pub struct YakuiWgpu {
+    limits: PaintLimits,
     main_pipeline: PipelineCache,
     text_pipeline: PipelineCache,
-    layout: wgpu::BindGroupLayout,
-    default_texture: GpuManagedTexture,
     samplers: Samplers,
     textures: Arena<GpuTexture>,
     managed_textures: HashMap<ManagedTextureId, GpuManagedTexture>,
+    texture_bindgroup_cache: TextureBindgroupCache,
 
     vertices: Buffer,
     indices: Buffer,
@@ -87,6 +72,12 @@ impl Vertex {
 
 impl YakuiWgpu {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        let limits = PaintLimits {
+            max_texture_size_1d: device.limits().max_texture_dimension_1d,
+            max_texture_size_2d: device.limits().max_texture_dimension_2d,
+            max_texture_size_3d: device.limits().max_texture_dimension_3d,
+        };
+
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("yakui Bind Group Layout"),
             entries: &[
@@ -130,16 +121,26 @@ impl YakuiWgpu {
         let default_texture_data =
             Texture::new(TextureFormat::Rgba8Srgb, UVec2::new(1, 1), vec![255; 4]);
         let default_texture = GpuManagedTexture::new(device, queue, &default_texture_data);
+        let default_bindgroup = bindgroup_cache::bindgroup(
+            device,
+            &layout,
+            &samplers,
+            &default_texture.view,
+            default_texture.min_filter,
+            default_texture.mag_filter,
+            wgpu::FilterMode::Nearest,
+            wgpu::AddressMode::ClampToEdge,
+        );
 
         Self {
+            limits,
             main_pipeline,
             text_pipeline,
-            layout,
-            default_texture,
             samplers,
             textures: Arena::new(),
             managed_textures: HashMap::new(),
 
+            texture_bindgroup_cache: TextureBindgroupCache::new(layout, default_bindgroup),
             vertices: Buffer::new(wgpu::BufferUsages::VERTEX),
             indices: Buffer::new(wgpu::BufferUsages::INDEX),
             commands: Vec::new(),
@@ -154,12 +155,14 @@ impl YakuiWgpu {
         min_filter: wgpu::FilterMode,
         mag_filter: wgpu::FilterMode,
         mipmap_filter: wgpu::FilterMode,
+        address_mode: wgpu::AddressMode,
     ) -> TextureId {
         let index = self.textures.insert(GpuTexture {
             view: view.into(),
             min_filter,
             mag_filter,
             mipmap_filter,
+            address_mode,
         });
         TextureId::User(index.to_bits())
     }
@@ -210,6 +213,7 @@ impl YakuiWgpu {
     ) {
         profiling::scope!("yakui-wgpu paint_with_encoder");
 
+        state.set_paint_limit(self.limits);
         let paint = state.paint();
 
         self.update_textures(device, paint, queue);
@@ -243,6 +247,9 @@ impl YakuiWgpu {
                 ..Default::default()
             });
 
+            render_pass.set_vertex_buffer(0, vertices.slice(..));
+            render_pass.set_index_buffer(indices.slice(..), wgpu::IndexFormat::Uint32);
+
             let mut last_clip = None;
 
             let main_pipeline = self.main_pipeline.get(
@@ -260,76 +267,66 @@ impl YakuiWgpu {
             );
 
             for command in commands {
-                match command {
-                    DrawCommand::Yakui(command) => {
-                        match command.pipeline {
-                            Pipeline::Main => render_pass.set_pipeline(main_pipeline),
-                            Pipeline::Text => render_pass.set_pipeline(text_pipeline),
-                            _ => continue,
-                        }
+                match command.pipeline {
+                    Pipeline::Main => render_pass.set_pipeline(main_pipeline),
+                    Pipeline::Text => render_pass.set_pipeline(text_pipeline),
+                }
 
-                        if command.clip != last_clip {
-                            last_clip = command.clip;
+                if command.clip != last_clip {
+                    last_clip = command.clip;
 
-                            let surface = paint.surface_size().as_uvec2();
+                    let surface = paint.surface_size().as_uvec2();
 
-                            match command.clip {
-                                Some(rect) => {
-                                    let pos = rect.pos().as_uvec2();
-                                    let size = rect.size().as_uvec2();
+                    match command.clip {
+                        Some(rect) => {
+                            let pos = rect.pos().as_uvec2();
+                            let size = rect.size().as_uvec2();
 
-                                    let max = (pos + size).min(surface);
-                                    let size = UVec2::new(
-                                        max.x.saturating_sub(pos.x),
-                                        max.y.saturating_sub(pos.y),
-                                    );
+                            let max = (pos + size).min(surface);
+                            let size = UVec2::new(
+                                max.x.saturating_sub(pos.x),
+                                max.y.saturating_sub(pos.y),
+                            );
 
-                                    // If the scissor rect isn't valid, we can skip this
-                                    // entire draw call.
-                                    if pos.x > surface.x
-                                        || pos.y > surface.y
-                                        || size.x == 0
-                                        || size.y == 0
-                                    {
-                                        continue;
-                                    }
-
-                                    render_pass.set_scissor_rect(pos.x, pos.y, size.x, size.y);
-                                }
-                                None => {
-                                    render_pass.set_scissor_rect(0, 0, surface.x, surface.y);
-                                }
+                            // If the scissor rect isn't valid, we can skip this
+                            // entire draw call.
+                            if pos.x > surface.x || pos.y > surface.y || size.x == 0 || size.y == 0
+                            {
+                                continue;
                             }
-                        }
 
-                        render_pass.set_vertex_buffer(0, vertices.slice(..));
-                        render_pass.set_index_buffer(indices.slice(..), wgpu::IndexFormat::Uint32);
-                        render_pass.set_bind_group(0, &command.bind_group, &[]);
-                        render_pass.draw_indexed(command.index_range.clone(), 0, 0..1);
-                    }
-                    DrawCommand::Custom(command) => {
-                        (command.setup)();
-                        (command.draw)(&mut render_pass);
+                            render_pass.set_scissor_rect(pos.x, pos.y, size.x, size.y);
+                        }
+                        None => {
+                            render_pass.set_scissor_rect(0, 0, surface.x, surface.y);
+                        }
                     }
                 }
+
+                let bindgroup = command
+                    .bind_group_entry
+                    .map(|entry| self.texture_bindgroup_cache.get(&entry))
+                    .unwrap_or(&self.texture_bindgroup_cache.default);
+
+                render_pass.set_bind_group(0, bindgroup, &[]);
+                render_pass.draw_indexed(command.index_range.clone(), 0, 0..1);
             }
         }
     }
 
-    fn update_buffers(&mut self, device: &wgpu::Device, paint: &mut PaintDom) {
+    fn update_buffers(&mut self, device: &wgpu::Device, paint: &PaintDom) {
         profiling::scope!("update_buffers");
 
         self.vertices.clear();
         self.indices.clear();
         self.commands.clear();
+        self.texture_bindgroup_cache.clear();
 
-        let layers = paint.take_layers();
-
-        let commands = layers
-            .into_inner()
-            .into_iter()
-            .flat_map(|layer| layer.calls)
-            .map(|call| match call {
+        let commands = paint
+            .layers()
+            .iter()
+            .flat_map(|layer| &layer.calls)
+            .flat_map(|call| match call {
                 PaintCall::Yakui(call) => {
                     let vertices = call.vertices.iter().map(|vertex| Vertex {
                         pos: vertex.position,
@@ -346,63 +343,60 @@ impl YakuiWgpu {
                     self.vertices.extend(vertices);
                     self.indices.extend(indices);
 
-                    let (view, min_filter, mag_filter, mipmap_filter) = call
+                    let bind_group_entry = call
                         .texture
                         .and_then(|id| match id {
                             TextureId::Managed(managed) => {
                                 let texture = self.managed_textures.get(&managed)?;
                                 Some((
+                                    id,
                                     &texture.view,
                                     texture.min_filter,
                                     texture.mag_filter,
                                     wgpu::FilterMode::Nearest,
+                                    texture.address_mode,
                                 ))
                             }
                             TextureId::User(bits) => {
                                 let index = Index::from_bits(bits)?;
                                 let texture = self.textures.get(index)?;
                                 Some((
+                                    id,
                                     &texture.view,
                                     texture.min_filter,
                                     texture.mag_filter,
                                     texture.mipmap_filter,
+                                    texture.address_mode,
                                 ))
                             }
                         })
-                        .unwrap_or((
-                            &self.default_texture.view,
-                            self.default_texture.min_filter,
-                            self.default_texture.mag_filter,
-                            wgpu::FilterMode::Nearest,
-                        ));
-
-                    let sampler = self.samplers.get(min_filter, mag_filter, mipmap_filter);
-
-                    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("yakui Bind Group"),
-                        layout: &self.layout,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::TextureView(view),
+                        .map(
+                            |(id, view, min_filter, mag_filter, mipmap_filter, address_mode)| {
+                                let entry = TextureBindgroupCacheEntry {
+                                    id,
+                                    min_filter,
+                                    mag_filter,
+                                    mipmap_filter,
+                                    address_mode,
+                                };
+                                self.texture_bindgroup_cache.update(
+                                    device,
+                                    entry,
+                                    view,
+                                    &self.samplers,
+                                );
+                                entry
                             },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::Sampler(sampler),
-                            },
-                        ],
-                    });
+                        );
 
-                    DrawCommand::Yakui(YakuiDrawCommand {
+                    Some(DrawCommand {
                         index_range: start..end,
-                        bind_group,
+                        bind_group_entry,
                         pipeline: call.pipeline,
                         clip: call.clip,
                     })
                 }
-                PaintCall::Custom(call) => {
-                    DrawCommand::Custom(YakuiWgpuPaintCallWrapper::from(call).0)
-                }
+                _ => None,
             });
 
         self.commands.extend(commands);
@@ -412,10 +406,9 @@ impl YakuiWgpu {
         profiling::scope!("update_textures");
 
         for (id, texture) in paint.textures() {
-            if !self.managed_textures.contains_key(&id) {
-                self.managed_textures
-                    .insert(id, GpuManagedTexture::new(device, queue, texture));
-            }
+            self.managed_textures
+                .entry(id)
+                .or_insert_with(|| GpuManagedTexture::new(device, queue, texture));
         }
 
         for (id, change) in paint.texture_edits() {
@@ -441,14 +434,9 @@ impl YakuiWgpu {
     }
 }
 
-enum DrawCommand {
-    Yakui(YakuiDrawCommand),
-    Custom(CustomPaintCall<dyn Fn(), dyn Fn(&mut RenderPass)>),
-}
-
-struct YakuiDrawCommand {
+struct DrawCommand {
     index_range: Range<u32>,
-    bind_group: wgpu::BindGroup,
+    bind_group_entry: Option<TextureBindgroupCacheEntry>,
     pipeline: Pipeline,
     clip: Option<Rect>,
 }
@@ -469,58 +457,14 @@ fn make_main_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: &main_shader,
-            entry_point: "vs_main",
+            entry_point: None,
+            compilation_options: Default::default(),
             buffers: &[Vertex::DESCRIPTOR],
         },
         fragment: Some(wgpu::FragmentState {
             module: &main_shader,
-            entry_point: "fs_main",
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: None,
-            polygon_mode: wgpu::PolygonMode::Fill,
-            unclipped_depth: false,
-            conservative: false,
-        },
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState {
-            count: samples,
-            ..Default::default()
-        },
-        multiview: None,
-    })
-}
-
-fn make_text_pipeline(
-    device: &wgpu::Device,
-    layout: &wgpu::PipelineLayout,
-    format: wgpu::TextureFormat,
-    samples: u32,
-) -> wgpu::RenderPipeline {
-    let text_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("Text Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/text.wgsl").into()),
-    });
-
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("yakui Text Pipeline"),
-        layout: Some(layout),
-        vertex: wgpu::VertexState {
-            module: &text_shader,
-            entry_point: "vs_main",
-            buffers: &[Vertex::DESCRIPTOR],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &text_shader,
-            entry_point: "fs_main",
+            entry_point: None,
+            compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format,
                 blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
@@ -542,5 +486,55 @@ fn make_text_pipeline(
             ..Default::default()
         },
         multiview: None,
+        cache: None,
+    })
+}
+
+fn make_text_pipeline(
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    format: wgpu::TextureFormat,
+    samples: u32,
+) -> wgpu::RenderPipeline {
+    let text_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("Text Shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/text.wgsl").into()),
+    });
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("yakui Text Pipeline"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: &text_shader,
+            entry_point: None,
+            compilation_options: Default::default(),
+            buffers: &[Vertex::DESCRIPTOR],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &text_shader,
+            entry_point: None,
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState {
+            count: samples,
+            ..Default::default()
+        },
+        multiview: None,
+        cache: None,
     })
 }

@@ -4,7 +4,7 @@
 </div>
 
 <div align="center">
-    <a href="https://github.com/SecondHalfGames/yakui/actions"><img src="https://github.com/SecondHalfGames/yakui/workflows/CI/badge.svg" alt="Actions status" /></a>
+    <a href="https://github.com/SecondHalfGames/yakui/actions"><img src="https://github.com/SecondHalfGames/yakui/actions/workflows/ci.yml/badge.svg?branch=main" alt="Actions status" /></a>
     <a href="https://crates.io/crates/yakui"><img src="https://img.shields.io/crates/v/yakui.svg?label=latest%20release" alt="Latest version" /></a>
     <a href="https://docs.rs/yakui"><img src="https://img.shields.io/badge/docs-docs.rs-brightgreen.svg" alt="Documentation" /></a>
     <a href="https://www.patreon.com/lpghatguy"><img src="https://img.shields.io/badge/sponsor-patreon-red" alt="Patreon" /></a>
@@ -23,8 +23,8 @@ yakui has the following priorities:
 3. Performance — yakui must be fast enough to use in a shipping game
 
 <div align="center">
-    <div><img width="720" id="panels" src="assets/ms80-editor.png" /></div>
-    <label for="#panels">yakui being used in the editor for <a href="https://secondhalf.games/">MS80</a></code></label>
+    <div><img width="760" id="panels" src="assets/ms80-editor.png" /></div>
+    <label for="#panels">yakui being used in the editor for <a href="https://secondhalf.games/">MS80</a></label>
 </div>
 
 [Flutter]: https://flutter.dev/
@@ -43,10 +43,16 @@ yakui has the following priorities:
 * [License](#license)
 
 ## Getting Started
-Add the [`yakui`] crate to your project:
+Add the [`yakui`] crate to your project, either from crates.io:
 
 ```bash
 cargo add yakui
+```
+
+...or by editing your `Cargo.toml` to use the latest version from GitHub:
+```toml
+[dependencies]
+yakui = { git = "https://github.com/SecondHalfGames/yakui" }
 ```
 
 Create a [`yakui::Yakui`] when your game starts:
@@ -73,7 +79,14 @@ Finally, call `paint()` and feed the result to your renderer:
 your_renderer.draw(yak.paint());
 ```
 
-You can use the [`yakui-winit`] and [`yakui-wgpu`] crates to integrate with [winit] and [wgpu], respectively.
+To see your UI, you'll need a renderer crate. You can also write your own renderer for your game. Here are the officially supported renderer crates:
+
+- [`yakui-wgpu`] — wgpu renderer
+- [`yakui-vulkan`] — Vulkan renderer
+
+You'll also need to send window and input events to yakui. These are the officially supported windowing library crates:
+
+- [`yakui-winit`] — Winit integration
 
 [`yakui::Yakui`]: https://github.com/SecondHalfGames/yakui/blob/main/crates/yakui-core/src/state.rs
 

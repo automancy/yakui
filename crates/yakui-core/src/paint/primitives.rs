@@ -3,7 +3,6 @@ use glam::{Vec2, Vec4};
 use crate::geometry::Rect;
 use crate::id::TextureId;
 
-#[non_exhaustive]
 #[allow(missing_docs)]
 pub struct PaintMesh<V, I> {
     pub vertices: V,
@@ -44,7 +43,6 @@ pub struct CustomPaintCall<S: ?Sized, D: ?Sized> {
 }
 
 #[derive(Debug)]
-#[non_exhaustive]
 #[allow(missing_docs)]
 pub struct YakuiPaintCall {
     pub vertices: Vec<Vertex>,
@@ -68,7 +66,6 @@ impl YakuiPaintCall {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
 #[allow(missing_docs)]
 pub struct Vertex {
     pub position: Vec2,
@@ -94,7 +91,6 @@ impl Vertex {
 
 /// The graphics pipeline that a draw call should be executed with.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum Pipeline {
     /// Pipline for drawing most geometry: vertices and an optional color
     /// texture.

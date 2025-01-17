@@ -49,8 +49,8 @@ pub fn cross(output: &mut PaintDom, rect: Rect, color: Color) {
     output.add_mesh(mesh);
 }
 
-pub fn selection_halo(output: &mut PaintDom, rect: Rect) {
-    outline(output, rect, 2.0, Color::WHITE);
+pub fn selection_halo(output: &mut PaintDom, rect: Rect, color: Color) {
+    outline(output, rect, 2.0, color);
 }
 
 pub fn outline(output: &mut PaintDom, rect: Rect, w: f32, color: Color) {
@@ -103,7 +103,6 @@ pub fn outline(output: &mut PaintDom, rect: Rect, w: f32, color: Color) {
     output.add_mesh(mesh);
 }
 
-#[non_exhaustive]
 pub struct Circle {
     pub center: Vec2,
     pub radius: f32,
@@ -163,7 +162,6 @@ const RECT_INDEX: [u16; 6] = [
     3, 0, 2,
 ];
 
-#[non_exhaustive]
 pub struct RoundedRectangle {
     pub rect: Rect,
     pub radius: f32,
