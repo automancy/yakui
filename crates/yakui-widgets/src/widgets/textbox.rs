@@ -644,6 +644,14 @@ impl Widget for TextBoxWidget {
             _ => EventResponse::Bubble,
         }
     }
+
+    fn reset_state(&mut self) {
+        let mut new = Self::new();
+
+        new.active = self.active;
+
+        *self = new;
+    }
 }
 
 /// Tells whether the set of modifiers contains the primary modifier, like ctrl
