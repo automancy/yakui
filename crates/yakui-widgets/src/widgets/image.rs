@@ -11,7 +11,7 @@ Displays an image.
 Responds with [ImageResponse].
 */
 #[derive(Debug, Clone)]
-#[non_exhaustive]
+#[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct Image {
     pub image: Option<TextureId>,
     pub size: Vec2,

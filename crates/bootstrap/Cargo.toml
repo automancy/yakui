@@ -10,7 +10,6 @@ profile = ["profiling/profile-with-tracy", "tracy-client"]
 [dependencies]
 yakui = { path = "../yakui" }
 yakui-app = { path = "../yakui-app" }
-yakui-widgets = { path = "../yakui-widgets" }
 yakui-wgpu = { path = "../yakui-wgpu" }
 yakui-winit = { path = "../yakui-winit" }
 
@@ -23,4 +22,4 @@ profiling = "1.0.6"
 tracy-client = { version = "0.15.1", optional = true }
 
 winit = "0.30.0"
-wgpu = "0.20.1"
+wgpu.workspace = true

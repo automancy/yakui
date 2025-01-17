@@ -15,8 +15,8 @@ use crate::widgets::{
     ConstrainedBoxResponse, CountGrid, Divider, DividerResponse, Draggable, DraggableResponse,
     Flexible, FlexibleResponse, Image, ImageResponse, List, ListResponse, MaxWidth,
     MaxWidthResponse, NineSlice, Offset, OffsetResponse, Opaque, OpaqueResponse, Pad, PadResponse,
-    Reflow, ReflowResponse, Scrollable, ScrollableResponse, Slider, SliderResponse, Spacer, State,
-    StateResponse, Text, TextBox, TextBoxResponse, TextResponse,
+    Reflow, ReflowResponse, Scrollable, ScrollableResponse, Slider, SliderResponse, Spacer, Stack,
+    StackResponse, State, StateResponse, Text, TextBox, TextBoxResponse, TextResponse,
 };
 
 /// See [List].
@@ -115,8 +115,8 @@ pub fn label<S: Into<Cow<'static, str>>>(text: S) -> Response<TextResponse> {
 
 /// See [TextBox].
 #[track_caller]
-pub fn textbox(initial_text: &str, updated_text: Option<&str>) -> Response<TextBoxResponse> {
-    TextBox::show_with_text(initial_text, updated_text)
+pub fn textbox<S: Into<String>>(text: S) -> Response<TextBoxResponse> {
+    TextBox::new(text.into()).show()
 }
 
 /// See [Flexible].
@@ -222,7 +222,11 @@ pub fn max_width(max_width: f32, children: impl FnOnce()) -> Response<MaxWidthRe
     MaxWidth::new(max_width).show(children)
 }
 
-#[track_caller]
+/// See [Stack].
+pub fn stack(children: impl FnOnce()) -> Response<StackResponse> {
+    Stack::new().show(children)
+}
+
 pub fn use_state<F, T: 'static>(default: F) -> Response<StateResponse<T>>
 where
     F: FnOnce() -> T + 'static,

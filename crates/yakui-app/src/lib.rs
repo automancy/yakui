@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod multisampling;
 
 use winit::{dpi::PhysicalSize, event::WindowEvent, event_loop::ActiveEventLoop, window::Window};
@@ -23,7 +25,7 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub async fn new(state: &mut yakui_core::Yakui, window: &Window, sample_count: u32) -> Self {
+    pub async fn new(window: &Window, sample_count: u32) -> Self {
         let mut size = window.inner_size();
 
         // FIXME: On web, we're receiving (0, 0) as the initial size of the
@@ -62,6 +64,7 @@ impl Graphics {
                     } else {
                         wgpu::Limits::default()
                     },
+                    memory_hints: Default::default(),
                     label: None,
                 },
                 None, // Trace path
@@ -85,7 +88,7 @@ impl Graphics {
 
         // yakui_wgpu takes paint output from yakui and renders it for us using
         // wgpu.
-        let renderer = yakui_wgpu::YakuiWgpu::new(state, &device, &queue);
+        let renderer = yakui_wgpu::YakuiWgpu::new(&device, &queue);
 
         // yakui_winit processes winit events and applies them to our yakui
         // state.

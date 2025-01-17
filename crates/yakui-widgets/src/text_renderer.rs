@@ -16,20 +16,20 @@ impl Kind {
     fn num_channels(self) -> usize {
         match self {
             Kind::Mask => 1,
-            Kind::Color { .. } => 4,
+            Kind::Color => 4,
         }
     }
 
     fn texture_format(self) -> TextureFormat {
         match self {
             Kind::Mask => TextureFormat::R8,
-            Kind::Color => TextureFormat::Rgba8Srgb,
+            Kind::Color => TextureFormat::Rgba8SrgbPremultiplied,
         }
     }
 }
 
 pub struct GlyphRender {
-    pub kind: Kind,
+    pub(crate) kind: Kind,
     pub rect: URect,
     pub offset: Vec2,
     pub tex_rect: Rect,
@@ -38,7 +38,7 @@ pub struct GlyphRender {
 
 #[derive(Debug)]
 pub struct InnerAtlas {
-    pub kind: Kind,
+    pub(crate) kind: Kind,
     pub texture: Option<ManagedTextureId>,
     pub glyph_rects: HashMap<cosmic_text::CacheKey, (URect, Vec2)>,
     next_pos: UVec2,
@@ -56,8 +56,8 @@ impl InnerAtlas {
         }
     }
 
-    fn ensure_texture(&mut self, paint: &mut PaintDom) {
-        let texture_size = paint.limits().max_texture_size_2d;
+    fn ensure_texture(&mut self, paint: &mut PaintDom) -> Option<ManagedTextureId> {
+        let texture_size = paint.limits()?.max_texture_size_2d;
 
         if self.texture.is_none() {
             let mut texture = Texture::new(
@@ -69,6 +69,8 @@ impl InnerAtlas {
             texture.min_filter = TextureFilter::Linear;
             self.texture = Some(paint.add_texture(texture))
         }
+
+        self.texture
     }
 
     fn get_or_insert(
@@ -78,20 +80,22 @@ impl InnerAtlas {
         cache: &mut cosmic_text::SwashCache,
         glyph: &cosmic_text::LayoutGlyph,
         image: Option<cosmic_text::SwashImage>,
-    ) -> Result<GlyphRender, Option<cosmic_text::SwashImage>> {
-        self.ensure_texture(paint);
+    ) -> Result<Option<GlyphRender>, Option<cosmic_text::SwashImage>> {
+        let Some(texture_id) = self.ensure_texture(paint) else {
+            return Ok(None);
+        };
 
-        let texture_size = paint.texture_mut(self.texture.unwrap()).unwrap().size();
+        let texture_size = paint.texture_mut(texture_id).unwrap().size();
 
         let physical_glyph = glyph.physical((0.0, 0.0), 1.0);
         if let Some((rect, offset)) = self.glyph_rects.get(&physical_glyph.cache_key).cloned() {
-            return Ok(GlyphRender {
+            return Ok(Some(GlyphRender {
                 kind: self.kind,
                 rect,
                 offset,
                 tex_rect: rect.as_rect().div_vec2(texture_size.as_vec2()),
                 texture: self.texture.unwrap(),
-            });
+            }));
         }
 
         if glyph.color_opt.is_some() {
@@ -122,17 +126,16 @@ impl InnerAtlas {
 
         let glyph_size = UVec2::new(image.placement.width, image.placement.height);
 
-        let glyph_max = self.next_pos + glyph_size;
-        if glyph_max.x >= texture_size.x || glyph_max.y >= texture_size.y {
-            self.clear(paint);
-            return self.get_or_insert(paint, font_system, cache, glyph, Some(image));
-        }
-
-        let pos = if glyph_max.x < texture_size.x {
+        let pos = if (self.next_pos + glyph_size).x < texture_size.x {
             self.next_pos
         } else {
             UVec2::new(0, self.max_height)
         };
+
+        let glyph_max = pos + glyph_size;
+        if glyph_max.x >= texture_size.x || glyph_max.y >= texture_size.y {
+            panic!("Overflowed glyph cache!");
+        }
 
         self.max_height = self.max_height.max(pos.y + glyph_size.y + 1);
         self.next_pos = pos + UVec2::new(glyph_size.x + 1, 0);
@@ -154,13 +157,13 @@ impl InnerAtlas {
         self.glyph_rects
             .insert(physical_glyph.cache_key, (rect, offset));
 
-        Ok(GlyphRender {
+        Ok(Some(GlyphRender {
             kind: self.kind,
             rect,
             offset,
             tex_rect: rect.as_rect().div_vec2(texture_size.as_vec2()),
             texture: self.texture.unwrap(),
-        })
+        }))
     }
 
     fn clear(&mut self, paint: &mut PaintDom) {
@@ -230,7 +233,7 @@ impl InnerState {
                 .get_or_insert(paint, font_system, &mut self.swash, glyph, None);
 
         match a {
-            Ok(glyph) => Some(glyph),
+            Ok(glyph) => glyph,
             Err(image) => {
                 let b = self.atlas.color_atlas.get_or_insert(
                     paint,
@@ -240,7 +243,7 @@ impl InnerState {
                     image,
                 );
 
-                b.ok()
+                b.ok()?
             }
         }
     }

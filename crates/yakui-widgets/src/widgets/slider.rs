@@ -17,7 +17,7 @@ const KNOB_SIZE: f32 = 24.0;
 const TOTAL_HEIGHT: f32 = KNOB_SIZE * 1.5;
 
 #[derive(Debug)]
-#[non_exhaustive]
+#[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct Slider {
     pub value: f64,
     pub min: f64,
@@ -42,7 +42,6 @@ impl Slider {
 }
 
 #[derive(Debug)]
-#[non_exhaustive]
 pub struct SliderResponse {
     pub value: Option<f64>,
 }

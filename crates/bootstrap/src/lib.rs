@@ -11,13 +11,13 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
+use yakui::cosmic_text::fontdb;
 use yakui::font::Fonts;
 use yakui::paint::{Texture, TextureFilter, TextureFormat};
 use yakui::{ManagedTextureId, Rect, TextureId, UVec2, Vec2, Yakui};
 use yakui_app::Graphics;
-use yakui_widgets::cosmic_text::fontdb;
 
-pub static OPENMOJI: &[u8] = include_bytes!("../assets/OpenMoji-color-glyf_colr_0.ttf");
+pub const OPENMOJI: &[u8] = include_bytes!("../assets/OpenMoji-color-glyf_colr_0.ttf");
 
 const MONKEY_PNG: &[u8] = include_bytes!("../assets/monkey.png");
 const MONKEY_BLURRED_PNG: &[u8] = include_bytes!("../assets/monkey-blurred.png");
@@ -65,11 +65,7 @@ impl<T: ExampleBody> ApplicationHandler for App<T> {
 
         let sample_count = get_sample_count();
 
-        let mut app = pollster::block_on(yakui_app::Graphics::new(
-            &mut self.yak,
-            &window,
-            sample_count,
-        ));
+        let mut app = pollster::block_on(yakui_app::Graphics::new(&window, sample_count));
 
         // By default, yakui_winit will measure the system's scale factor and pass
         // it to yakui.
