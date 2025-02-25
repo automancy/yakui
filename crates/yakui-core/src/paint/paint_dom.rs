@@ -6,6 +6,7 @@ use thunderdome::Arena;
 use crate::dom::Dom;
 use crate::geometry::Rect;
 use crate::id::{ManagedTextureId, WidgetId};
+use crate::layout::ClipRect;
 use crate::layout::LayoutDom;
 use crate::paint::{PaintCall, Pipeline};
 use crate::widget::PaintContext;
@@ -36,7 +37,7 @@ pub struct PaintDom {
     limits: Option<PaintLimits>,
 
     layers: PaintLayers,
-    clip_stack: Vec<Rect>,
+    current_clip: Option<Rect>,
 }
 
 impl PaintDom {
@@ -51,7 +52,7 @@ impl PaintDom {
             limits: None,
 
             layers: PaintLayers::new(),
-            clip_stack: Vec::new(),
+            current_clip: None,
         }
     }
 
@@ -68,7 +69,6 @@ impl PaintDom {
     /// Prepares the PaintDom to be updated for the frame.
     pub fn start(&mut self) {
         self.texture_edits.clear();
-        self.clip_stack.clear();
     }
 
     /// Returns the size of the surface that is being painted onto.
@@ -97,8 +97,12 @@ impl PaintDom {
         profiling::scope!("PaintDom::paint");
 
         let layout_node = layout.get(id).unwrap();
-        if layout_node.clipping_enabled {
-            self.push_clip(layout_node.rect);
+        if let ClipRect::Resolved(rect) = layout_node.clip_rect {
+            let scaled = Rect::from_pos_size(
+                rect.pos() * self.scale_factor,
+                rect.size() * self.scale_factor,
+            );
+            self.current_clip = Some(scaled);
         }
         if layout_node.new_layer {
             self.layers.push();
@@ -116,9 +120,7 @@ impl PaintDom {
 
         dom.exit(id);
 
-        if layout_node.clipping_enabled {
-            self.pop_clip();
-        }
+        self.current_clip = None;
         if layout_node.new_layer {
             self.layers.pop();
         }
@@ -198,7 +200,8 @@ impl PaintDom {
             .current_mut()
             .expect("an active layer is required to call add_mesh");
 
-        let current_clip = self.clip_stack.last().copied();
+        let current_clip = self.current_clip;
+
         let call = match layer.calls.last_mut() {
             Some(call)
                 if call.texture == texture_id
@@ -243,28 +246,5 @@ impl PaintDom {
             vertex
         });
         call.vertices.extend(vertices);
-    }
-
-    /// Use the given region as the clipping rect for all following paint calls.
-    fn push_clip(&mut self, region: Rect) {
-        let mut unscaled = Rect::from_pos_size(
-            region.pos() * self.scale_factor,
-            region.size() * self.scale_factor,
-        );
-
-        if let Some(previous) = self.clip_stack.last() {
-            unscaled = unscaled.constrain(*previous);
-        }
-
-        self.clip_stack.push(unscaled);
-    }
-
-    /// Pop the most recent clip region, restoring the previous clipping rect.
-    fn pop_clip(&mut self) {
-        let top = self.clip_stack.pop();
-        debug_assert!(
-            top.is_some(),
-            "cannot call pop_clip without a corresponding push_clip call"
-        );
     }
 }
