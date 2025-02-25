@@ -32,10 +32,7 @@ impl Graphics {
             size = UVec2::new(800, 600);
         }
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::all()),
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::default();
         let surface = unsafe {
             instance.create_surface_unsafe(
                 wgpu::SurfaceTargetUnsafe::from_window(window)
