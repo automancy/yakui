@@ -586,7 +586,16 @@ impl Widget for TextBoxWidget {
 
         match event {
             WidgetEvent::FocusChanged(focused) => {
-                self.active = *focused;
+                if *focused {
+                    self.active = true;
+                    ctx.input.set_selection(Some(ctx.dom.current()));
+                } else {
+                    self.active = false;
+                    if ctx.input.selection() == Some(ctx.dom.current()) {
+                        ctx.input.set_selection(None);
+                    }
+                }
+
                 if !*focused {
                     self.lost_focus = true;
                     if let Some(editor) = self.cosmic_editor.get_mut() {
@@ -704,9 +713,18 @@ impl Widget for TextBoxWidget {
                 }
 
                 if *inside {
-                    ctx.input.set_selection(Some(ctx.dom.current()));
-                    EventResponse::Sink
+                    if *down {
+                        self.active = true;
+                        ctx.input.set_selection(Some(ctx.dom.current()));
+                        EventResponse::Sink
+                    } else {
+                        EventResponse::Bubble
+                    }
                 } else {
+                    self.active = false;
+                    if ctx.input.selection() == Some(ctx.dom.current()) {
+                        ctx.input.set_selection(None);
+                    }
                     EventResponse::Bubble
                 }
             }
@@ -862,7 +880,10 @@ impl Widget for TextBoxWidget {
                             if *down {
                                 action = Some(cosmic_text::Action::Escape);
                                 if self.props.inline_edit {
-                                    ctx.input.set_selection(None);
+                                    self.active = false;
+                                    if ctx.input.selection() == Some(ctx.dom.current()) {
+                                        ctx.input.set_selection(None);
+                                    }
                                 }
                             }
                             res = EventResponse::Sink;
@@ -892,7 +913,10 @@ impl Widget for TextBoxWidget {
                                         self.text_changed_by_cosmic.set(true);
                                     } else {
                                         self.activated = true;
-                                        ctx.input.set_selection(None);
+                                        self.active = false;
+                                        if ctx.input.selection() == Some(ctx.dom.current()) {
+                                            ctx.input.set_selection(None);
+                                        }
                                     }
                                 } else {
                                     action = Some(cosmic_text::Action::Enter);
