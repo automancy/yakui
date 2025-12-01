@@ -264,6 +264,9 @@ pub struct TextBoxResponse {
     /// props, contains the new string.
     pub text: Option<String>,
 
+    /// Whether or not the textbox is currently active (i.e. focused by the user).
+    pub active: bool,
+
     /// Whether the user pressed "Enter" in this textbox. This only happens when
     /// the textbox is inline.
     pub activated: bool,
@@ -399,6 +402,7 @@ impl Widget for TextBoxWidget {
             } else {
                 None
             },
+            active: self.active,
             activated: mem::take(&mut self.activated),
             lost_focus: mem::take(&mut self.lost_focus),
         }
