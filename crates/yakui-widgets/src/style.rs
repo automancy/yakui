@@ -5,6 +5,7 @@ use crate::auto_builders;
 #[derive(Debug, Clone)]
 pub struct TextStyle {
     pub font_size: f32,
+    pub min_width: f32,
     pub line_height_override: Option<f32>,
     pub color: Color,
     pub align: TextAlignment,
@@ -12,8 +13,8 @@ pub struct TextStyle {
 }
 
 auto_builders!(TextStyle {
-    color: Color,
     font_size: f32,
+    min_width: f32,
     line_height_override: Option<f32>,
     color: Color,
     align: TextAlignment,
@@ -24,6 +25,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         Self {
             font_size: 14.0,
+            min_width: 0.0,
             line_height_override: None,
             color: Color::WHITE,
             align: TextAlignment::Start,

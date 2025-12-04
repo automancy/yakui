@@ -152,7 +152,8 @@ impl Widget for RenderTextWidget {
                         ctx.layout.scale_factor(),
                         max_width,
                     )
-                    .max(constraints.min.x * ctx.layout.scale_factor()),
+                    .max(constraints.min.x * ctx.layout.scale_factor())
+                    .max(self.props.style.min_width),
                 );
 
                 buffer.set_metrics(

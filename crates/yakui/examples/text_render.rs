@@ -1,4 +1,6 @@
 use bootstrap::load_common_fonts;
+use yakui::style::TextAlignment;
+use yakui::widgets::Text;
 use yakui::{column, text};
 
 pub fn run() {
@@ -27,6 +29,28 @@ pub fn run() {
 试释是事。
 ",
         );
+
+        Text::new(
+            16.0,
+            "
+《三字經》
+人之初，性本善。性相近，習相遠。
+苟不教，性乃遷。教之道，貴以專。
+昔孟母，擇鄰處。子不學，斷機杼。
+竇燕山，有義方。教五子，名俱揚。
+養不教，父之過。教不嚴，師之惰。
+子不學，非所宜。幼不學，老何為。
+玉不琢，不成器。人不學，不知義。
+為人子，方少時。親師友，習禮儀。
+香九齡，能溫席。孝於親，所當執。
+融四歲，能讓梨。弟於長，宜先知。
+首孝悌，次見聞。知某數，識某文。
+一而十，十而百。百而千，千而萬。
+三才者，天地人。三光者，日月星。
+",
+        )
+        .style(|style| style.min_width(320.0).align(TextAlignment::End))
+        .show();
     });
 }
 
