@@ -144,12 +144,22 @@ impl Widget for RenderTextWidget {
             if relayout {
                 self.max_size.set(Some(max_size));
                 self.scale_factor.set(Some(ctx.layout.scale_factor()));
+                self.widest_line.set(
+                    measure_text_width(
+                        font_system,
+                        &self.props.text,
+                        &self.props.style,
+                        ctx.layout.scale_factor(),
+                        max_width,
+                    )
+                    .max(constraints.min.x * ctx.layout.scale_factor()),
+                );
 
                 buffer.set_metrics(
                     font_system,
                     self.props.style.to_metrics(ctx.layout.scale_factor()),
                 );
-
+                buffer.set_size(font_system, max_width, max_height);
                 buffer.set_text(
                     font_system,
                     &self.props.text,
@@ -157,26 +167,6 @@ impl Widget for RenderTextWidget {
                     cosmic_text::Shaping::Advanced,
                     None,
                 );
-
-                let scroll = buffer.scroll();
-                buffer.set_scroll(cosmic_text::Scroll::default());
-                buffer.set_size(font_system, max_width, None);
-                let widest_line = buffer
-                    .layout_runs()
-                    .map(|layout| {
-                        if layout.rtl {
-                            max_width.unwrap_or(layout.line_w)
-                        } else {
-                            layout.line_w
-                        }
-                    })
-                    .max_by(|a, b| a.total_cmp(b))
-                    .unwrap_or_default()
-                    .max(constraints.min.x * ctx.layout.scale_factor());
-                buffer.set_size(font_system, max_width, max_height);
-                buffer.set_scroll(scroll);
-
-                self.widest_line.set(widest_line);
             }
 
             if relayout || self.last_scroll.get() != self.scroll {
@@ -284,4 +274,34 @@ fn paint_text(
     rect.pipeline = Pipeline::Text;
 
     rect.add(ctx.paint);
+}
+
+pub fn measure_text_width(
+    font_system: &mut cosmic_text::FontSystem,
+    text: &str,
+    style: &TextStyle,
+    scale_factor: f32,
+    max_width: Option<f32>,
+) -> f32 {
+    let mut buffer = cosmic_text::Buffer::new(font_system, style.to_metrics(scale_factor));
+    buffer.set_text(
+        font_system,
+        text,
+        &style.attrs.as_attrs(),
+        cosmic_text::Shaping::Advanced,
+        None,
+    );
+
+    buffer.set_size(font_system, max_width, None);
+    buffer
+        .layout_runs()
+        .map(|layout| {
+            if layout.rtl {
+                max_width.unwrap_or(layout.line_w)
+            } else {
+                layout.line_w
+            }
+        })
+        .max_by(|a, b| a.total_cmp(b))
+        .unwrap_or_default()
 }
