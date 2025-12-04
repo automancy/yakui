@@ -36,8 +36,7 @@ pub struct Text {
 }
 
 auto_builders!(Text {
-    style: TextStyle,
-    padding: Pad,
+    padding: Pad, //fmt
 });
 
 impl Text {
@@ -68,6 +67,13 @@ impl Text {
         }
     }
 
+    pub fn style<F: FnOnce(TextStyle) -> TextStyle>(self, f: F) -> Self {
+        Self {
+            style: f(self.style),
+            ..self
+        }
+    }
+
     #[track_caller]
     pub fn show(self) -> Response<TextResponse> {
         widget::<TextWidget>(self)
@@ -94,11 +100,8 @@ impl Widget for TextWidget {
     fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
         self.props = props;
 
-        let mut render = RenderText::new(self.props.text.clone());
-        render.style = self.props.style.clone();
-
         pad(self.props.padding, || {
-            render.show();
+            RenderText::with_style(self.props.text.clone(), self.props.style.clone()).show();
         });
     }
 }

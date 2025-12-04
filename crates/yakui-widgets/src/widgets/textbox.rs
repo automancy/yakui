@@ -184,7 +184,6 @@ pub struct TextBox {
 }
 
 auto_builders!(TextBox {
-    style: TextStyle,
     padding: Pad,
     fill: Option<Color>,
     radius: f32,
@@ -198,13 +197,10 @@ auto_builders!(TextBox {
 
 impl TextBox {
     pub fn new<S: Into<String>>(text: S) -> Self {
-        let mut style = TextStyle::label();
-        style.align = TextAlignment::Start;
-
         Self {
             text: text.into(),
 
-            style,
+            style: TextStyle::label().align(TextAlignment::Start),
             padding: Pad::all(8.0),
             fill: Some(colors::BACKGROUND_3),
             radius: 6.0,
@@ -217,6 +213,13 @@ impl TextBox {
             cursor_color: Color::RED,
 
             placeholder: String::new(),
+        }
+    }
+
+    pub fn style<F: FnOnce(TextStyle) -> TextStyle>(self, f: F) -> Self {
+        Self {
+            style: f(self.style),
+            ..self
         }
     }
 
