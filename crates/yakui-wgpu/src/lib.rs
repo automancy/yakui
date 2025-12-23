@@ -125,7 +125,7 @@ impl YakuiWgpu {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("yakui Main Pipeline Layout"),
             bind_group_layouts: &[&layout],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
 
         let main_pipeline = PipelineCache::new(pipeline_layout);
@@ -133,7 +133,7 @@ impl YakuiWgpu {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("yakui Text Pipeline Layout"),
             bind_group_layouts: &[&layout],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
 
         let text_pipeline = PipelineCache::new(pipeline_layout);
@@ -150,7 +150,7 @@ impl YakuiWgpu {
             &default_texture.view,
             default_texture.min_filter,
             default_texture.mag_filter,
-            wgpu::FilterMode::Nearest,
+            wgpu::MipmapFilterMode::Nearest,
             wgpu::AddressMode::ClampToEdge,
         );
 
@@ -179,7 +179,7 @@ impl YakuiWgpu {
         view: impl Into<Arc<wgpu::TextureView>>,
         min_filter: wgpu::FilterMode,
         mag_filter: wgpu::FilterMode,
-        mipmap_filter: wgpu::FilterMode,
+        mipmap_filter: wgpu::MipmapFilterMode,
         address_mode: wgpu::AddressMode,
     ) -> TextureId {
         let index = self.textures.insert(GpuTexture {
@@ -268,7 +268,7 @@ impl YakuiWgpu {
                         &texture.view,
                         texture.min_filter,
                         texture.mag_filter,
-                        wgpu::FilterMode::Nearest,
+                        wgpu::MipmapFilterMode::Nearest,
                         texture.address_mode,
                     ))
                 }
@@ -415,7 +415,7 @@ fn make_main_pipeline(
             count: samples,
             ..Default::default()
         },
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -464,7 +464,7 @@ fn make_text_pipeline(
             count: samples,
             ..Default::default()
         },
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
