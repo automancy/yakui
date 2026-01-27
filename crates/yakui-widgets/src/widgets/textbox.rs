@@ -213,7 +213,7 @@ impl TextBox {
         Self {
             text: text.into(),
 
-            style,
+            style: TextStyle::label().align(TextAlignment::Start),
             padding: Pad::all(8.0),
             min_width: 0.0,
             fill: Some(colors::BACKGROUND_3),
