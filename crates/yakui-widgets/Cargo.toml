@@ -16,7 +16,7 @@ system-fonts = ["cosmic-text/fontconfig"]
 [dependencies]
 yakui-core = { path = "../yakui-core", version = "0.3.0" }
 
-cosmic-text = { version = "0.16.0", default-features = false, features = [
+cosmic-text = { version = "0.17.1", default-features = false, features = [
     "std",
     "swash",
 ] }
