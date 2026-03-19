@@ -127,7 +127,7 @@ impl YakuiWgpu {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("yakui Main Pipeline Layout"),
-            bind_group_layouts: &[&layout],
+            bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
 
@@ -135,7 +135,7 @@ impl YakuiWgpu {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("yakui Text Pipeline Layout"),
-            bind_group_layouts: &[&layout],
+            bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
 
@@ -169,7 +169,7 @@ impl YakuiWgpu {
         let premul_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("yakui Premultiply Texture Pipeline Layout"),
-                bind_group_layouts: &[&premul_bind_group_layout],
+                bind_group_layouts: &[Some(&premul_bind_group_layout)],
                 immediate_size: 0,
             });
 
